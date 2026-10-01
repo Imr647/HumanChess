@@ -8,7 +8,14 @@ import GameControls from "./components/GameControls";
 import MoveList from "./components/MoveList";
 import ReviewPanel from "./components/ReviewPanel";
 import SetupPanel from "./components/SetupPanel";
-import { fenAtIndex, resultText, statusLabel, uciAtPly } from "./lib/chessUtils";
+import {
+  CLASS_LABELS,
+  CLASS_SYMBOLS,
+  fenAtIndex,
+  resultText,
+  statusLabel,
+  uciAtPly,
+} from "./lib/chessUtils";
 import { useGame } from "./hooks/useGame";
 
 export default function App() {
@@ -72,6 +79,36 @@ export default function App() {
     }
     return list;
   }, [g.hint, g.evalResult, g.review, previewing, previewPly]);
+
+  const badges = useMemo(() => {
+    const map: Record<string, { symbol: string; cls: string; big: boolean }> = {};
+    if (!g.review) return map;
+    if (previewPly !== null) {
+      if (previewPly === 0) return map;
+      const move = g.review.moves[previewPly - 1];
+      if (move) {
+        map[move.uci.slice(2, 4)] = {
+          symbol: CLASS_SYMBOLS[move.classification],
+          cls: move.classification,
+          big: true,
+        };
+      }
+      return map;
+    }
+    for (const move of g.review.moves) {
+      map[move.uci.slice(2, 4)] = {
+        symbol: CLASS_SYMBOLS[move.classification],
+        cls: move.classification,
+        big: false,
+      };
+    }
+    return map;
+  }, [g.review, previewPly]);
+
+  const selectedMove =
+    g.review && previewPly !== null && previewPly > 0
+      ? g.review.moves[previewPly - 1]
+      : null;
 
   const errorBanner = g.error && (
     <div className="error-banner">
@@ -184,7 +221,26 @@ export default function App() {
             arrows={arrows}
             fenOverride={previewing ? fenAtIndex(game, previewPly ?? 0) : null}
             lastMoveOverride={previewing ? uciAtPly(game, (previewPly ?? 0) - 1) : null}
+            badges={badges}
           />
+          {selectedMove && (
+            <div className={`move-comment ${selectedMove.classification}`}>
+              <div className="move-comment-head">
+                <span className="move-comment-san">
+                  {selectedMove.number}
+                  {selectedMove.color === "white" ? "." : "..."} {selectedMove.san}
+                </span>
+                <span className="move-comment-tag">
+                  {CLASS_SYMBOLS[selectedMove.classification]}{" "}
+                  {CLASS_LABELS[selectedMove.classification]}
+                </span>
+              </div>
+              <p>{selectedMove.comment}</p>
+              {selectedMove.best_san && selectedMove.best_san !== selectedMove.san && (
+                <p className="muted">Beste zet was {selectedMove.best_san}.</p>
+              )}
+            </div>
+          )}
           {g.busy && !previewing && <div className="thinking">Even denken...</div>}
           {mode === "premove" && !g.premove && (
             <p className="muted premove-tip">

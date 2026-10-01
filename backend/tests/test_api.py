@@ -99,6 +99,7 @@ def test_review():
         assert len(data["moves"]) == 2
         assert len(data["eval"]) == 3
         assert data["summary"]["white"]["accuracy"] > 0
+        assert data["moves"][0]["comment"]
         assert data["moves"][0]["classification"] in {
             "best",
             "excellent",

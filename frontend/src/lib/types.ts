@@ -56,6 +56,7 @@ export interface ReviewMove {
   win_drop: number;
   accuracy: number;
   eval_cp: number;
+  comment: string;
 }
 
 export interface ReviewSummary {

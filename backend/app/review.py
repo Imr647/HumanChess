@@ -49,6 +49,39 @@ def _classify(win_drop: float, is_best: bool) -> str:
     return "blunder"
 
 
+_BEST_HINT = {
+    "excellent": "Uitstekend — vrijwel gelijk aan de beste zet ({best}).",
+    "good": "Goede zet. {best} was iets nauwkeuriger.",
+    "inaccuracy": "Onnauwkeurig. {best} hield het voordeel beter vast.",
+    "mistake": "Fout. {best} was duidelijk sterker.",
+    "blunder": "Blunder! {best} was veel sterker.",
+}
+
+
+def _comment(
+    classification: str,
+    best_san: str | None,
+    cp_before: int,
+    cp_after: int,
+    cp_loss: int,
+) -> str:
+    best = best_san or "een andere zet"
+    if classification == "best":
+        text = "Beste zet volgens Stockfish."
+    else:
+        text = _BEST_HINT[classification].format(best=best)
+
+    extras: list[str] = []
+    if cp_before >= INFINITY_CP and cp_after < INFINITY_CP:
+        extras.append("Je liet een geforceerde mat liggen.")
+    elif cp_after <= -INFINITY_CP and cp_before > -INFINITY_CP:
+        extras.append("Dit geeft de tegenstander een geforceerde mat.")
+    elif classification in ("mistake", "blunder") and 0 < cp_loss < INFINITY_CP:
+        extras.append(f"Kostte ongeveer {cp_loss / 100:.1f} pion aan voordeel.")
+
+    return " ".join([text, *extras])
+
+
 def _positions(session: GameSession) -> list[chess.Board]:
     board = chess.Board(session.initial_fen) if session.initial_fen else chess.Board()
     boards = [board.copy()]
@@ -98,6 +131,7 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
 
         cp_before = evals[index] if mover_white else -evals[index]
         cp_after = evals[index + 1] if mover_white else -evals[index + 1]
+        cp_loss = max(0, cp_before - cp_after)
 
         moves.append(
             {
@@ -109,10 +143,17 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
                 "best_uci": best_moves[index],
                 "best_san": analyses[index]["best_san"],
                 "classification": classification,
-                "cp_loss": max(0, cp_before - cp_after),
+                "cp_loss": cp_loss,
                 "win_drop": round(win_drop, 2),
                 "accuracy": accuracy,
                 "eval_cp": evals[index + 1],
+                "comment": _comment(
+                    classification,
+                    analyses[index]["best_san"],
+                    cp_before,
+                    cp_after,
+                    cp_loss,
+                ),
             }
         )
 

@@ -16,6 +16,7 @@ interface BoardProps {
   arrows?: Arrow[];
   fenOverride?: string | null;
   lastMoveOverride?: string | null;
+  badges?: Record<string, { symbol: string; cls: string; big: boolean }>;
 }
 
 const PROMOTION_PIECES = [
@@ -36,6 +37,7 @@ export default function Board({
   arrows = [],
   fenOverride = null,
   lastMoveOverride = null,
+  badges,
 }: BoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [promotion, setPromotion] = useState<
@@ -94,6 +96,30 @@ export default function Board({
     }
     return styles;
   }, [board, lastMove, kingSquare, premove, selected]);
+
+  const squareRenderer = useMemo(() => {
+    if (!badges || Object.keys(badges).length === 0) return undefined;
+    return ({ square, children }: { square: string; children?: React.ReactNode }) => {
+      const badge = badges[square];
+      return (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            position: "relative",
+            ...squareStyles[square],
+          }}
+        >
+          {children}
+          {badge && (
+            <span className={`move-badge ${badge.cls} ${badge.big ? "big" : "small"}`}>
+              {badge.big ? badge.symbol : ""}
+            </span>
+          )}
+        </div>
+      );
+    };
+  }, [badges, squareStyles]);
 
   const boardArrows = useMemo(() => {
     if (!premove) return arrows;
@@ -206,6 +232,7 @@ export default function Board({
           onPieceDrop: handleDrop,
           onSquareClick: handleSquareClick,
           squareStyles,
+          squareRenderer,
           arrows: boardArrows,
           darkSquareStyle: { backgroundColor: "#6d8fae" },
           lightSquareStyle: { backgroundColor: "#e6ebf0" },
