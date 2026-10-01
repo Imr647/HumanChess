@@ -181,16 +181,18 @@ export function flipTurn(fen: string): string {
 }
 
 export function applyFreeMove(fen: string, uci: string): { fen: string; san: string } | null {
-  try {
-    const chess = new Chess(flipTurn(fen));
-    const move = chess.move({
-      from: uci.slice(0, 2),
-      to: uci.slice(2, 4),
-      promotion: uci.slice(4, 5) || undefined,
-    });
-    if (!move) return null;
-    return { fen: flipTurn(chess.fen()), san: move.san };
-  } catch {
-    return null;
+  for (const basis of [fen, flipTurn(fen)]) {
+    try {
+      const chess = new Chess(basis);
+      const move = chess.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci.slice(4, 5) || undefined,
+      });
+      if (move) return { fen: chess.fen(), san: move.san };
+    } catch {
+      /* ongeldige zet in deze stand: dan de omgedraaide beurt proberen */
+    }
   }
+  return null;
 }

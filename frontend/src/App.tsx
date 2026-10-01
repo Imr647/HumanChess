@@ -16,7 +16,6 @@ import {
   applyFreeMove,
   capturedUpTo,
   fenAtIndex,
-  flipTurn,
   hasLegalMoves,
   resultText,
   statusLabel,
@@ -210,7 +209,7 @@ export default function App() {
             return `${move.number}${move.color === "white" ? "." : "..."} ${move.san}`;
           })();
 
-  const freeDisplayFen = free ? flipTurn(free.fen) : null;
+  const freeDisplayFen = free ? free.fen : null;
 
   const startFree = () => {
     let plek = previewing ? previewPly ?? 0 : game.moves.length;
