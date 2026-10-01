@@ -399,6 +399,8 @@ export default function App() {
         </div>
 
         <aside className="sidebar">
+          <Clock game={game} captured={captured} onTimeout={g.refresh} />
+
           <div className="panel">
             <div className="panel-bot">
               <Avatar name={game.bot.name} color={game.bot.color} size={44} />
@@ -411,8 +413,6 @@ export default function App() {
           </div>
 
           <ChatFeed messages={game.chat} botName={game.bot.name} botColor={game.bot.color} />
-
-          <Clock game={game} captured={captured} onTimeout={g.refresh} />
 
           {ongoing && (
             <GameControls
