@@ -11,6 +11,7 @@ niveau op die van mensen lijken. Voor analyse en hints wordt
 - Speel tegen benoemde bots op verschillende Elo-niveaus
 - Kies je kleur en tijdsinstelling
 - Zettenlijst, undo, opgeven, remise aanbieden
+- Voorzetten (premove): plan je volgende zet terwijl de bot nadenkt
 - Klok
 - PGN importeren en exporteren
 - Hint en eval-balk (Stockfish)

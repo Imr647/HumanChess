@@ -59,11 +59,19 @@ export default function App() {
 
   const game = g.game;
   const ongoing = game.status === "ongoing";
-  const disabled = g.busy || !game.player_turn || !ongoing;
+  const mode: "move" | "premove" | "locked" = !ongoing
+    ? "locked"
+    : game.player_turn
+      ? g.busy
+        ? "locked"
+        : "move"
+      : "premove";
   const statusMessage = ongoing
     ? game.player_turn
       ? "Jouw zet"
-      : `${game.bot.name} denkt...`
+      : g.premove
+        ? "Voorzet gepland — wacht op de bot"
+        : `${game.bot.name} denkt...`
     : `${statusLabel(game.status)} — ${resultText(game) ?? ""}`;
 
   return (
@@ -86,12 +94,20 @@ export default function App() {
         <div className="board-column">
           <Board
             game={game}
-            disabled={disabled}
+            mode={mode}
+            premove={g.premove}
             onMove={(uci) => void g.playerMove(uci)}
+            onPremove={g.queuePremove}
             arrows={arrows}
           />
           {g.busy && <div className="thinking">Even denken...</div>}
+          {mode === "premove" && !g.premove && (
+            <p className="muted premove-tip">
+              Je kunt alvast je volgende zet aangeven (voorzet).
+            </p>
+          )}
           {g.hint?.san && <div className="hint-line">Hint: {g.hint.san}</div>}
+          {g.notice && <div className="notice-line">{g.notice}</div>}
         </div>
 
         <aside className="sidebar">

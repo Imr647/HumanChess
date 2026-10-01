@@ -313,6 +313,16 @@ button.icon {
   font-weight: 600;
 }
 
+.premove-tip {
+  margin-top: 10px;
+}
+
+.notice-line {
+  margin-top: 10px;
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+
 .promotion-overlay {
   position: absolute;
   inset: 0;

@@ -86,6 +86,12 @@ export interface EvalResult {
   best_san: string | null;
 }
 
+export interface Premove {
+  from: string;
+  to: string;
+  promotion?: string;
+}
+
 export interface NewGameConfig {
   bot_id: string;
   player_color: Color;

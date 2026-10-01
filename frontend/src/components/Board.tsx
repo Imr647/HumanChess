@@ -3,12 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Chessboard, type Arrow } from "react-chessboard";
 
 import { lastMoveSquares } from "../lib/chessUtils";
-import type { GameSnapshot } from "../lib/types";
+import type { GameSnapshot, Premove } from "../lib/types";
+
+type BoardMode = "move" | "premove" | "locked";
 
 interface BoardProps {
   game: GameSnapshot;
-  disabled: boolean;
+  mode: BoardMode;
+  premove: Premove | null;
   onMove: (uci: string) => void;
+  onPremove: (pm: Premove) => void;
   arrows?: Arrow[];
 }
 
@@ -19,9 +23,20 @@ const PROMOTION_PIECES = [
   { code: "n", label: "Paard" },
 ];
 
-export default function Board({ game, disabled, onMove, arrows = [] }: BoardProps) {
+const PREMOVE_COLOR = "rgba(186, 104, 255, 0.55)";
+
+export default function Board({
+  game,
+  mode,
+  premove,
+  onMove,
+  onPremove,
+  arrows = [],
+}: BoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [promotion, setPromotion] = useState<{ from: string; to: string } | null>(null);
+  const [promotion, setPromotion] = useState<
+    { from: string; to: string; kind: "move" | "premove" } | null
+  >(null);
   const [resetKey, setResetKey] = useState(0);
 
   const board = useMemo(() => new Chess(game.fen), [game.fen]);
@@ -29,7 +44,13 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
 
   useEffect(() => {
     setSelected(null);
-  }, [game.fen]);
+  }, [game.fen, mode]);
+
+  const needsPromotion = (from: string, to: string) => {
+    const piece = board.get(from as Square);
+    if (!piece || piece.type !== "p") return false;
+    return (piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1");
+  };
 
   const kingSquare = useMemo(() => {
     if (!board.isCheck()) return null;
@@ -52,6 +73,10 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
         background: "radial-gradient(circle, rgba(255,0,0,0.55) 30%, transparent 72%)",
       };
     }
+    if (premove) {
+      styles[premove.from] = { background: PREMOVE_COLOR };
+      styles[premove.to] = { background: PREMOVE_COLOR };
+    }
     if (selected) {
       styles[selected] = { background: "rgba(255, 235, 59, 0.45)" };
       const moves = board.moves({ square: selected as Square, verbose: true });
@@ -62,19 +87,23 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
       }
     }
     return styles;
-  }, [board, game.last_move, kingSquare, selected]);
+  }, [board, game.last_move, kingSquare, premove, selected]);
 
-  const tryMove = (from: string, to: string) => {
-    const moves = board.moves({ square: from as Square, verbose: true });
-    const matches = moves.filter((m) => m.to === to);
-    if (matches.length === 0) return false;
-    if (matches.some((m) => m.promotion)) {
-      setPromotion({ from, to });
-      return true;
+  const boardArrows = useMemo(() => {
+    if (!premove) return arrows;
+    return [
+      ...arrows,
+      { startSquare: premove.from, endSquare: premove.to, color: "#b466ff" },
+    ];
+  }, [arrows, premove]);
+
+  const queuePremove = (from: string, to: string) => {
+    if (needsPromotion(from, to)) {
+      setPromotion({ from, to, kind: "premove" });
+    } else {
+      onPremove({ from, to });
+      setSelected(null);
     }
-    onMove(`${from}${to}`);
-    setSelected(null);
-    return true;
   };
 
   const handleDrop = ({
@@ -84,24 +113,61 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
     sourceSquare: string;
     targetSquare: string | null;
   }) => {
-    if (disabled || !targetSquare) {
-      if (promotion) {
-        setPromotion(null);
-        setResetKey((k) => k + 1);
+    if (mode === "locked" || !targetSquare) return false;
+
+    if (mode === "premove") {
+      const target = board.get(targetSquare as Square);
+      const ownTarget = target?.color === playerChar;
+      if (sourceSquare !== targetSquare && !ownTarget) {
+        queuePremove(sourceSquare, targetSquare);
       }
       return false;
     }
-    return tryMove(sourceSquare, targetSquare);
+
+    const moves = board.moves({ square: sourceSquare as Square, verbose: true });
+    const matches = moves.filter((m) => m.to === targetSquare);
+    if (matches.length === 0) return false;
+    if (matches.some((m) => m.promotion)) {
+      setPromotion({ from: sourceSquare, to: targetSquare, kind: "move" });
+      return false;
+    }
+    onMove(`${sourceSquare}${targetSquare}`);
+    setSelected(null);
+    return true;
   };
 
-  const handleSquareClick = ({ square, piece }: { square: string; piece: { pieceType: string } | null }) => {
-    if (disabled) return;
+  const handleSquareClick = ({
+    square,
+    piece,
+  }: {
+    square: string;
+    piece: { pieceType: string } | null;
+  }) => {
+    if (mode === "locked") return;
     if (selected) {
       if (square === selected) {
         setSelected(null);
         return;
       }
-      if (tryMove(selected, square)) return;
+      if (mode === "premove") {
+        if (piece && piece.pieceType[0] === playerChar) {
+          setSelected(square);
+          return;
+        }
+        queuePremove(selected, square);
+        return;
+      }
+      const moves = board.moves({ square: selected as Square, verbose: true });
+      const matches = moves.filter((m) => m.to === square);
+      if (matches.length > 0) {
+        if (matches.some((m) => m.promotion)) {
+          setPromotion({ from: selected, to: square, kind: "move" });
+          return;
+        }
+        onMove(`${selected}${square}`);
+        setSelected(null);
+        return;
+      }
     }
     if (piece && piece.pieceType[0] === playerChar) {
       setSelected(square);
@@ -112,7 +178,11 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
 
   const pickPromotion = (code: string) => {
     if (!promotion) return;
-    onMove(`${promotion.from}${promotion.to}${code}`);
+    if (promotion.kind === "premove") {
+      onPremove({ from: promotion.from, to: promotion.to, promotion: code });
+    } else {
+      onMove(`${promotion.from}${promotion.to}${code}`);
+    }
     setPromotion(null);
     setSelected(null);
   };
@@ -125,12 +195,12 @@ export default function Board({ game, disabled, onMove, arrows = [] }: BoardProp
           id: "humanchess-board",
           position: game.fen,
           boardOrientation: game.player_color,
-          allowDragging: !disabled,
-          canDragPiece: ({ piece }) => !disabled && piece.pieceType[0] === playerChar,
+          allowDragging: mode !== "locked",
+          canDragPiece: ({ piece }) => mode !== "locked" && piece.pieceType[0] === playerChar,
           onPieceDrop: handleDrop,
           onSquareClick: handleSquareClick,
           squareStyles,
-          arrows,
+          arrows: boardArrows,
           darkSquareStyle: { backgroundColor: "#6d8fae" },
           lightSquareStyle: { backgroundColor: "#e6ebf0" },
           animationDurationInMs: 200,

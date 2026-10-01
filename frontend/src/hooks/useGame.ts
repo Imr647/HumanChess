@@ -1,3 +1,4 @@
+import { Chess } from "chess.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../lib/api";
@@ -7,7 +8,22 @@ import type {
   GameSnapshot,
   GameSummary,
   NewGameConfig,
+  Premove,
 } from "../lib/types";
+
+function premoveToUci(pm: Premove): string {
+  return `${pm.from}${pm.to}${pm.promotion ?? ""}`;
+}
+
+function premoveIsLegal(fen: string, pm: Premove): boolean {
+  try {
+    const chess = new Chess(fen);
+    chess.move({ from: pm.from, to: pm.to, promotion: pm.promotion });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function useGame() {
   const [bots, setBots] = useState<Bot[]>([]);
@@ -18,7 +34,11 @@ export function useGame() {
   const [hint, setHint] = useState<{ move: string | null; san: string | null } | null>(null);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
   const [stockfishAvailable, setStockfishAvailable] = useState(true);
+  const [premove, setPremove] = useState<Premove | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const gameIdRef = useRef<string | null>(null);
+  const premoveRef = useRef<Premove | null>(null);
+  const noticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     api.bots().then(setBots).catch((e) => setError(String(e.message ?? e)));
@@ -40,6 +60,22 @@ export function useGame() {
     void loadHistory();
   }, [loadHistory]);
 
+  const clearPremove = useCallback(() => {
+    premoveRef.current = null;
+    setPremove(null);
+  }, []);
+
+  const queuePremove = useCallback((pm: Premove) => {
+    premoveRef.current = pm;
+    setPremove(pm);
+  }, []);
+
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(null), 3500);
+  }, []);
+
   const apply = useCallback(async (promise: Promise<GameSnapshot>) => {
     setBusy(true);
     setError(null);
@@ -49,6 +85,10 @@ export function useGame() {
       setGame(snap);
       setHint(null);
       setEvalResult(null);
+      if (snap.status !== "ongoing") {
+        premoveRef.current = null;
+        setPremove(null);
+      }
       return snap;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -59,45 +99,68 @@ export function useGame() {
   }, []);
 
   const startGame = useCallback(
-    (config: NewGameConfig) => apply(api.createGame(config)),
-    [apply],
+    (config: NewGameConfig) => {
+      clearPremove();
+      return apply(api.createGame(config));
+    },
+    [apply, clearPremove],
   );
 
   const openGame = useCallback(
-    (id: string) => apply(api.getGame(id)),
-    [apply],
+    (id: string) => {
+      clearPremove();
+      return apply(api.getGame(id));
+    },
+    [apply, clearPremove],
   );
 
   const playerMove = useCallback(
     async (uci: string) => {
       const id = gameIdRef.current;
       if (!id) return null;
-      const snap = await apply(api.move(id, uci));
-      if (snap && snap.status === "ongoing" && !snap.player_turn) {
-        return apply(api.botMove(id));
+      let snap = await apply(api.move(id, uci));
+      let guard = 0;
+      while (snap && snap.status === "ongoing" && guard < 100) {
+        guard += 1;
+        if (!snap.player_turn) {
+          snap = await apply(api.botMove(id));
+          continue;
+        }
+        const pm = premoveRef.current;
+        if (!pm) break;
+        premoveRef.current = null;
+        setPremove(null);
+        if (!premoveIsLegal(snap.fen, pm)) {
+          showNotice("Voorzet verviel: die zet is onwettig na de zet van de bot.");
+          break;
+        }
+        snap = await apply(api.move(id, premoveToUci(pm)));
       }
       return snap;
     },
-    [apply],
+    [apply, showNotice],
   );
 
   const undo = useCallback(() => {
     const id = gameIdRef.current;
     if (!id) return;
+    clearPremove();
     void apply(api.undo(id)).then(loadHistory);
-  }, [apply, loadHistory]);
+  }, [apply, clearPremove, loadHistory]);
 
   const resign = useCallback(() => {
     const id = gameIdRef.current;
     if (!id) return;
+    clearPremove();
     void apply(api.resign(id)).then(loadHistory);
-  }, [apply, loadHistory]);
+  }, [apply, clearPremove, loadHistory]);
 
   const offerDraw = useCallback(() => {
     const id = gameIdRef.current;
     if (!id) return;
+    clearPremove();
     void apply(api.draw(id)).then(loadHistory);
-  }, [apply, loadHistory]);
+  }, [apply, clearPremove, loadHistory]);
 
   const getHint = useCallback(async () => {
     const id = gameIdRef.current;
@@ -136,9 +199,11 @@ export function useGame() {
   }, []);
 
   const importPgn = useCallback(
-    (pgn: string, botId: string, playerColor: "white" | "black") =>
-      apply(api.importPgn(pgn, botId, playerColor)),
-    [apply],
+    (pgn: string, botId: string, playerColor: "white" | "black") => {
+      clearPremove();
+      return apply(api.importPgn(pgn, botId, playerColor));
+    },
+    [apply, clearPremove],
   );
 
   const refresh = useCallback(() => {
@@ -165,8 +230,10 @@ export function useGame() {
     setHint(null);
     setEvalResult(null);
     setError(null);
+    setNotice(null);
+    clearPremove();
     void loadHistory();
-  }, [loadHistory]);
+  }, [clearPremove, loadHistory]);
 
   return {
     bots,
@@ -177,6 +244,8 @@ export function useGame() {
     hint,
     evalResult,
     stockfishAvailable,
+    premove,
+    notice,
     startGame,
     openGame,
     playerMove,
@@ -190,6 +259,8 @@ export function useGame() {
     removeGame,
     refresh,
     leaveGame,
+    queuePremove,
+    clearPremove,
     clearError: () => setError(null),
     loadHistory,
   };
