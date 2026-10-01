@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import maia, stockfish
 from .bots import get_bot, list_bots
-from .config import MAIA_DEVICE, REVIEW_DEPTH
+from .config import MAIA_DEVICE, REVIEW_DEPTH, ROOT
 from .db import store
 from .game import GameSession, game_from_pgn, new_game
 from .review import review_game
@@ -283,3 +284,8 @@ def delete_game(game_id: str) -> dict:
             _reviews.pop(key, None)
     store.delete(game_id)
     return {"ok": True}
+
+
+_DIST_DIR = ROOT / "frontend" / "dist"
+if _DIST_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DIST_DIR), html=True), name="frontend")

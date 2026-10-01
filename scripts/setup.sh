@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="$HOME/.local/bin:$PATH"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
@@ -23,10 +25,12 @@ echo "==> Maia-3 modellen cachen (5M verplicht, 23M optioneel)"
 .venv/bin/maia3-cache --model maia3-5m || true
 .venv/bin/maia3-cache --model maia3-23m || true
 
-echo "==> Frontend dependencies installeren"
+echo "==> Frontend dependencies installeren en bouwen"
 cd "$FRONTEND"
 npm install
+npm run build
 
 echo
 echo "Klaar. Start met: ./scripts/dev.sh"
+echo "Productie (mini PC): ./deploy.sh"
 echo "GPU proberen? Draai daarna: ./scripts/setup_gpu.sh"
