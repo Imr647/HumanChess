@@ -15,9 +15,15 @@ LOSS_EXCELLENT = 2.0
 LOSS_GOOD = 5.0
 LOSS_INACCURACY = 10.0
 LOSS_MISTAKE = 20.0
-GREAT_MARGIN = 10.0
+GREAT_MARGIN = 20.0
 MISS_MIN_ADVANTAGE = 0.55
 BOOK_MAX_PLY = 20
+# Briljant en geweldig krijgen alleen betekenis in een stelling die nog niet
+# beslist is. In een partij die je al met 8 punten voorstaat is iets weggeven
+# geen kunst en is "de enige goede zet" niet bijzonder.
+NOT_ALREADY_WON = 0.85
+# Het offer moet de stelling gezond houden.
+SACRIFICE_OK = 0.50
 
 PIECE_VALUES = {
     chess.PAWN: 100,
@@ -136,20 +142,53 @@ def _classify(win_drop: float, is_best: bool) -> str:
     return "blunder"
 
 
-def _is_sacrifice(board_before: chess.Board, move: chess.Move, board_after: chess.Board) -> bool:
-    moved = board_before.piece_at(move.from_square)
-    if moved is None or moved.piece_type == chess.KING:
-        return False
-    moved_value = PIECE_VALUES[moved.piece_type]
-    if moved_value < PIECE_VALUES[chess.KNIGHT]:
-        return False
-    captured = board_before.piece_at(move.to_square)
-    captured_value = PIECE_VALUES[captured.piece_type] if captured else 0
-    can_recapture = any(
-        m.to_square == move.to_square and board_after.is_capture(m)
-        for m in board_after.legal_moves
+def _cheapest_attacker(board: chess.Board, square: int) -> int | None:
+    """De waarde van het goedkoopste stuk dat op dit veld kan slaan, of None."""
+    waarden = [
+        PIECE_VALUES[board.piece_at(m.from_square).piece_type]
+        for m in board.legal_moves
+        if m.to_square == square and board.is_capture(m)
+    ]
+    return min(waarden) if waarden else None
+
+
+def _only_move_to_keep(is_best: bool, gap: float, before_mover: float, is_recapture: bool) -> bool:
+    """Geweldig: de beste zet, met een duidelijk verval bij elk alternatief.
+
+    Een terugslaan op het veld waar de tegenstander net sloeg is nooit geweldig:
+    dat is niet de enige goede zet, dat is de enige zet.
+    """
+    return (
+        is_best
+        and gap >= GREAT_MARGIN
+        and before_mover <= NOT_ALREADY_WON
+        and not is_recapture
     )
-    return can_recapture and captured_value < moved_value
+
+
+def _brilliant(
+    is_best: bool,
+    offered: int | None,
+    cheapest_attacker: int | None,
+    before_mover: float,
+    after_mover: float,
+) -> bool:
+    """Een offer is pas briljant als er echt materiaal wordt weggegeven.
+
+    `offered` is de waarde van het stuk dat wordt neergezet, `cheapest_attacker`
+    wat de tegenstander ertegenover kan zetten. Alleen als dat goedkoper is dan
+    wat er staat, verliest de zetter materiaal bij slaan en is er van een offer
+    sprake. Verder telt het alleen in een stelling die nog niet gewonnen is
+    (anders is iets weggeven geen kunst) en moet het offer de stelling gezond
+    houden.
+    """
+    if not is_best or offered is None or cheapest_attacker is None:
+        return False
+    if offered < PIECE_VALUES[chess.KNIGHT]:
+        return False
+    if cheapest_attacker >= offered:
+        return False
+    return before_mover <= NOT_ALREADY_WON and after_mover >= SACRIFICE_OK
 
 
 _BEST_HINT = {
@@ -249,6 +288,7 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
     moves: list[dict] = []
     summary = {"white": _empty_summary(), "black": _empty_summary()}
     previous_classification: str | None = None
+    vorige_doel: int | None = None
 
     for index, entry in enumerate(session._move_list()):
         mover_white = entry["color"] == "white"
@@ -261,19 +301,29 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
         win_drop = max(0.0, (before_mover - after_mover) * 100.0)
         is_best = best_moves[index] == entry["uci"]
 
-        only_good = False
+        move = chess.Move.from_uci(entry["uci"])
+        # slaat deze zet terug op het veld waar de tegenstander net sloeg?
+        recapture = vorige_doel is not None and move.to_square == vorige_doel
+        vorige_doel = move.to_square
+
+        gap = 0.0
         if is_best:
             alternative = second_cp(index)
             if alternative is not None:
                 gap = abs(_win_prob_white(evals[index]) - _win_prob_white(alternative)) * 100.0
-                only_good = gap >= GREAT_MARGIN
-
-        move = chess.Move.from_uci(entry["uci"])
+        only_good = _only_move_to_keep(is_best, gap, before_mover, recapture)
         in_book = (
             index < BOOK_MAX_PLY
             and chess.polyglot.zobrist_hash(boards[index + 1]) in BOOK_HASHES
         )
-        sacrifice = is_best and _is_sacrifice(boards[index], move, boards[index + 1])
+        neergezet = boards[index].piece_at(move.from_square)
+        sacrifice = (not recapture) and _brilliant(
+            is_best,
+            PIECE_VALUES[neergezet.piece_type] if neergezet is not None else None,
+            _cheapest_attacker(boards[index + 1], move.to_square),
+            before_mover,
+            after_mover,
+        )
 
         if in_book:
             classification = "book"
