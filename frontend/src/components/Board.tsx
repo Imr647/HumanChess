@@ -14,6 +14,8 @@ interface BoardProps {
   onMove: (uci: string) => void;
   onPremove: (pm: Premove) => void;
   arrows?: Arrow[];
+  fenOverride?: string | null;
+  lastMoveOverride?: string | null;
 }
 
 const PROMOTION_PIECES = [
@@ -32,6 +34,8 @@ export default function Board({
   onMove,
   onPremove,
   arrows = [],
+  fenOverride = null,
+  lastMoveOverride = null,
 }: BoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [promotion, setPromotion] = useState<
@@ -39,12 +43,14 @@ export default function Board({
   >(null);
   const [resetKey, setResetKey] = useState(0);
 
-  const board = useMemo(() => new Chess(game.fen), [game.fen]);
+  const position = fenOverride ?? game.fen;
+  const lastMove = lastMoveOverride ?? game.last_move;
+  const board = useMemo(() => new Chess(position), [position]);
   const playerChar = game.player_color === "white" ? "w" : "b";
 
   useEffect(() => {
     setSelected(null);
-  }, [game.fen, mode]);
+  }, [position, mode]);
 
   const needsPromotion = (from: string, to: string) => {
     const piece = board.get(from as Square);
@@ -65,7 +71,7 @@ export default function Board({
 
   const squareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
-    for (const square of lastMoveSquares(game.last_move)) {
+    for (const square of lastMoveSquares(lastMove)) {
       styles[square] = { background: "rgba(155, 199, 0, 0.45)" };
     }
     if (kingSquare) {
@@ -87,7 +93,7 @@ export default function Board({
       }
     }
     return styles;
-  }, [board, game.last_move, kingSquare, premove, selected]);
+  }, [board, lastMove, kingSquare, premove, selected]);
 
   const boardArrows = useMemo(() => {
     if (!premove) return arrows;
@@ -193,7 +199,7 @@ export default function Board({
         key={resetKey}
         options={{
           id: "humanchess-board",
-          position: game.fen,
+          position,
           boardOrientation: game.player_color,
           allowDragging: mode !== "locked",
           canDragPiece: ({ piece }) => mode !== "locked" && piece.pieceType[0] === playerChar,

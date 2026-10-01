@@ -1,4 +1,36 @@
-import type { EvalLine, GameSnapshot, GameStatus } from "./types";
+import { Chess } from "chess.js";
+
+import type { EvalLine, GameSnapshot, GameStatus, MoveClass } from "./types";
+
+export const CLASS_LABELS: Record<MoveClass, string> = {
+  best: "Beste",
+  excellent: "Uitstekend",
+  good: "Goed",
+  inaccuracy: "Onnauwkeurig",
+  mistake: "Fout",
+  blunder: "Blunder",
+};
+
+export const CLASS_SYMBOLS: Record<MoveClass, string> = {
+  best: "★",
+  excellent: "!",
+  good: "✓",
+  inaccuracy: "?!",
+  mistake: "?",
+  blunder: "??",
+};
+
+export function fenAtIndex(game: GameSnapshot, index: number): string {
+  const chess = new Chess(game.initial_fen ?? undefined);
+  for (let i = 0; i < index && i < game.moves.length; i += 1) {
+    chess.move(game.moves[i].uci);
+  }
+  return chess.fen();
+}
+
+export function uciAtPly(game: GameSnapshot, ply: number): string | null {
+  return game.moves[ply]?.uci ?? null;
+}
 
 export function statusLabel(status: GameStatus): string {
   switch (status) {

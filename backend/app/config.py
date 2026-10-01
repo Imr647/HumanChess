@@ -20,5 +20,6 @@ BOT_THINK_SCALE = float(os.environ.get("HCHESS_BOT_THINK_SCALE", "1.0"))
 BOT_THINK_JITTER = float(os.environ.get("HCHESS_BOT_THINK_JITTER", "0.4"))
 
 STOCKFISH_DEPTH = int(os.environ.get("HCHESS_SF_DEPTH", "14"))
+REVIEW_DEPTH = int(os.environ.get("HCHESS_REVIEW_DEPTH", "12"))
 STOCKFISH_THREADS = int(os.environ.get("HCHESS_SF_THREADS", "4"))
 STOCKFISH_HASH_MB = int(os.environ.get("HCHESS_SF_HASH", "256"))

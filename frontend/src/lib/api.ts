@@ -4,6 +4,7 @@ import type {
   GameSnapshot,
   GameSummary,
   NewGameConfig,
+  ReviewResult,
 } from "./types";
 
 const BASE = "/api";
@@ -54,6 +55,8 @@ export const api = {
     ),
   evaluate: (id: string, multipv = 3) =>
     request<EvalResult>(`/games/${id}/eval?multipv=${multipv}`),
+  review: (id: string, depth = 0) =>
+    request<ReviewResult>(`/games/${id}/review?depth=${depth}`),
   pgn: async (id: string): Promise<string> => {
     const res = await fetch(`${BASE}/games/${id}/pgn`);
     if (!res.ok) throw new Error("Kon PGN niet ophalen");

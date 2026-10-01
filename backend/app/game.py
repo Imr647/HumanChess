@@ -239,6 +239,7 @@ class GameSession:
         last_move = self.moves[-1] if self.moves else None
         return {
             "id": self.id,
+            "initial_fen": self.initial_fen,
             "bot": {
                 "id": self.bot.id,
                 "name": self.bot.name,

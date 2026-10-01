@@ -35,8 +35,51 @@ export type GameStatus =
   | "resigned"
   | "timeout";
 
+export type MoveClass =
+  | "best"
+  | "excellent"
+  | "good"
+  | "inaccuracy"
+  | "mistake"
+  | "blunder";
+
+export interface ReviewMove {
+  ply: number;
+  number: number;
+  color: Color;
+  san: string;
+  uci: string;
+  best_uci: string | null;
+  best_san: string | null;
+  classification: MoveClass;
+  cp_loss: number;
+  win_drop: number;
+  accuracy: number;
+  eval_cp: number;
+}
+
+export interface ReviewSummary {
+  accuracy: number;
+  best: number;
+  excellent: number;
+  good: number;
+  inaccuracy: number;
+  mistake: number;
+  blunder: number;
+}
+
+export interface ReviewResult {
+  game_id: string;
+  depth: number;
+  summary: { white: ReviewSummary; black: ReviewSummary };
+  moves: ReviewMove[];
+  eval: number[];
+  initial_fen: string | null;
+}
+
 export interface GameSnapshot {
   id: string;
+  initial_fen: string | null;
   bot: { id: string; name: string; elo: number; description: string };
   player_color: Color;
   fen: string;

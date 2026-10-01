@@ -85,6 +85,30 @@ def test_pgn_export():
         assert "1. d4" in resp.text
 
 
+def test_review():
+    with TestClient(app) as client:
+        game = client.post(
+            "/api/games",
+            json={"bot_id": "pip", "player_color": "white"},
+        ).json()
+        client.post(f"/api/games/{game['id']}/move", json={"uci": "e2e4"})
+        client.post(f"/api/games/{game['id']}/bot-move")
+        resp = client.get(f"/api/games/{game['id']}/review?depth=6")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["moves"]) == 2
+        assert len(data["eval"]) == 3
+        assert data["summary"]["white"]["accuracy"] > 0
+        assert data["moves"][0]["classification"] in {
+            "best",
+            "excellent",
+            "good",
+            "inaccuracy",
+            "mistake",
+            "blunder",
+        }
+
+
 def test_hint():
     with TestClient(app) as client:
         game = client.post(

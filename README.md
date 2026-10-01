@@ -15,6 +15,9 @@ niveau op die van mensen lijken. Voor analyse en hints wordt
 - Klok
 - PGN importeren en exporteren
 - Hint en eval-balk (Stockfish)
+- Partij-analyse van afgeronde potten: elke zet beoordeeld
+  (beste/uitstekend/goed/onnauwkeurig/fout/blunder), accuracy per speler,
+  eval-verloop en replay op het bord
 - CPU of AMD ROCm-GPU (experimenteel)
 
 ## Installatie

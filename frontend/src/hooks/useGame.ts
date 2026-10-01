@@ -9,6 +9,7 @@ import type {
   GameSummary,
   NewGameConfig,
   Premove,
+  ReviewResult,
 } from "../lib/types";
 
 function premoveToUci(pm: Premove): string {
@@ -36,6 +37,8 @@ export function useGame() {
   const [stockfishAvailable, setStockfishAvailable] = useState(true);
   const [premove, setPremove] = useState<Premove | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [review, setReview] = useState<ReviewResult | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
   const gameIdRef = useRef<string | null>(null);
   const premoveRef = useRef<Premove | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
@@ -85,6 +88,7 @@ export function useGame() {
       setGame(snap);
       setHint(null);
       setEvalResult(null);
+      setReview(null);
       if (snap.status !== "ongoing") {
         premoveRef.current = null;
         setPremove(null);
@@ -186,6 +190,22 @@ export function useGame() {
     }
   }, []);
 
+  const runReview = useCallback(async () => {
+    const id = gameIdRef.current;
+    if (!id) return;
+    setReviewLoading(true);
+    setError(null);
+    try {
+      setReview(await api.review(id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReviewLoading(false);
+    }
+  }, []);
+
+  const clearReview = useCallback(() => setReview(null), []);
+
   const exportPgn = useCallback(async () => {
     const id = gameIdRef.current;
     if (!id) return;
@@ -231,6 +251,7 @@ export function useGame() {
     setEvalResult(null);
     setError(null);
     setNotice(null);
+    setReview(null);
     clearPremove();
     void loadHistory();
   }, [clearPremove, loadHistory]);
@@ -246,6 +267,10 @@ export function useGame() {
     stockfishAvailable,
     premove,
     notice,
+    review,
+    reviewLoading,
+    runReview,
+    clearReview,
     startGame,
     openGame,
     playerMove,

@@ -9,9 +9,10 @@ from fastapi.responses import PlainTextResponse
 
 from . import maia, stockfish
 from .bots import get_bot, list_bots
-from .config import MAIA_DEVICE
+from .config import MAIA_DEVICE, REVIEW_DEPTH
 from .db import store
 from .game import GameSession, game_from_pgn, new_game
+from .review import review_game
 from .schemas import ImportRequest, MoveRequest, NewGameRequest
 
 
@@ -32,6 +33,7 @@ app.add_middleware(
 )
 
 _sessions: dict[str, GameSession] = {}
+_reviews: dict[tuple[str, int, int], dict] = {}
 _lock = threading.Lock()
 
 
@@ -184,6 +186,25 @@ def evaluate(game_id: str, multipv: int = 3) -> dict:
     return stockfish.stockfish.analyse(session.board(), multipv=multipv)
 
 
+@app.get("/api/games/{game_id}/review")
+def review(game_id: str, depth: int = 0) -> dict:
+    session = _get_session(game_id)
+    if not session.moves:
+        raise HTTPException(status_code=400, detail="Geen zetten om te beoordelen")
+    if not stockfish.stockfish.available():
+        raise HTTPException(status_code=503, detail="Stockfish niet beschikbaar")
+    use_depth = depth or REVIEW_DEPTH
+    key = (game_id, len(session.moves), use_depth)
+    with _lock:
+        cached = _reviews.get(key)
+    if cached is not None:
+        return cached
+    result = review_game(session, depth=use_depth)
+    with _lock:
+        _reviews[key] = result
+    return result
+
+
 @app.get("/api/games/{game_id}/pgn", response_class=PlainTextResponse)
 def pgn(game_id: str) -> str:
     return _get_session(game_id).to_pgn()
@@ -207,5 +228,7 @@ def import_game(req: ImportRequest) -> dict:
 def delete_game(game_id: str) -> dict:
     with _lock:
         _sessions.pop(game_id, None)
+        for key in [k for k in _reviews if k[0] == game_id]:
+            _reviews.pop(key, None)
     store.delete(game_id)
     return {"ok": True}
