@@ -27,6 +27,8 @@ function premoveIsLegal(fen: string, pm: Premove): boolean {
   }
 }
 
+const MAX_PREMOVES = 8;
+
 export function useGame() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [game, setGame] = useState<GameSnapshot | null>(null);
@@ -36,13 +38,17 @@ export function useGame() {
   const [hint, setHint] = useState<{ move: string | null; san: string | null } | null>(null);
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
   const [stockfishAvailable, setStockfishAvailable] = useState(true);
-  const [premove, setPremove] = useState<Premove | null>(null);
+  const [premoves, setPremoves] = useState<Premove[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewResult | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const gameIdRef = useRef<string | null>(null);
-  const premoveRef = useRef<Premove | null>(null);
+  const premovesRef = useRef<Premove[]>([]);
+  // Eén wijziging tegelijk: zo kunnen een voorzet en een handmatige zet niet naast
+  // elkaar naar de server gaan en elkaar overschrijven.
+  const inFlightRef = useRef(false);
+  const seqRef = useRef(0);
   const noticeTimerRef = useRef<number | null>(null);
   const lastConfigRef = useRef<NewGameConfig | null>(null);
 
@@ -78,15 +84,33 @@ export function useGame() {
     void loadProfile();
   }, [loadProfile]);
 
-  const clearPremove = useCallback(() => {
-    premoveRef.current = null;
-    setPremove(null);
+  const zetVoorzetten = useCallback((lijst: Premove[]) => {
+    premovesRef.current = lijst;
+    setPremoves(lijst);
   }, []);
 
-  const queuePremove = useCallback((pm: Premove) => {
-    premoveRef.current = pm;
-    setPremove(pm);
-  }, []);
+  const clearPremove = useCallback(() => zetVoorzetten([]), [zetVoorzetten]);
+
+  const queuePremove = useCallback(
+    (pm: Premove) => {
+      const huidig = premovesRef.current;
+      const laatste = huidig[huidig.length - 1];
+      if (
+        laatste &&
+        laatste.from === pm.from &&
+        laatste.to === pm.to &&
+        (laatste.promotion ?? "") === (pm.promotion ?? "")
+      ) {
+        return; // dezelfde zet nog eens: niet dubbel op de stapel
+      }
+      zetVoorzetten([...huidig, pm].slice(-MAX_PREMOVES));
+    },
+    [zetVoorzetten],
+  );
+
+  const undoPremove = useCallback(() => {
+    zetVoorzetten(premovesRef.current.slice(0, -1));
+  }, [zetVoorzetten]);
 
   const showNotice = useCallback((message: string) => {
     setNotice(message);
@@ -95,26 +119,39 @@ export function useGame() {
   }, []);
 
   const apply = useCallback(async (promise: Promise<GameSnapshot>) => {
+    const seq = ++seqRef.current;
     setBusy(true);
     setError(null);
     try {
       const snap = await promise;
+      // Er is inmiddels een nieuwer verzoek onderweg: dit antwoord is achterhaald en
+      // mag het bord niet meer terugzetten.
+      if (seq !== seqRef.current) return null;
       gameIdRef.current = snap.id;
       setGame(snap);
       setHint(null);
       setEvalResult(null);
       setReview(null);
       if (snap.status !== "ongoing") {
-        premoveRef.current = null;
-        setPremove(null);
+        zetVoorzetten([]);
         void loadProfile();
       }
       return snap;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (seq === seqRef.current) setError(e instanceof Error ? e.message : String(e));
       return null;
     } finally {
-      setBusy(false);
+      if (seq === seqRef.current) setBusy(false);
+    }
+  }, [loadProfile, zetVoorzetten]);
+
+  const metSlot = useCallback(async <T>(werk: () => Promise<T>): Promise<T | null> => {
+    if (inFlightRef.current) return null;
+    inFlightRef.current = true;
+    try {
+      return await werk();
+    } finally {
+      inFlightRef.current = false;
     }
   }, []);
 
@@ -148,63 +185,83 @@ export function useGame() {
     async (uci: string) => {
       const id = gameIdRef.current;
       if (!id) return null;
-      const snap = await apply(api.move(id, uci));
-      if (snap && snap.status === "ongoing" && !snap.player_turn) {
-        return apply(api.botMove(id));
+      if (inFlightRef.current) {
+        showNotice("Even wachten: de vorige zet is nog bezig.");
+        return null;
       }
-      return snap;
+      return metSlot(async () => {
+        const snap = await apply(api.move(id, uci));
+        if (snap && snap.status === "ongoing" && !snap.player_turn) {
+          return apply(api.botMove(id));
+        }
+        return snap;
+      });
     },
-    [apply],
+    [apply, metSlot, showNotice],
   );
 
-  // Verwerk een geplande voorzet zodra de speler weer aan zet is. Dit los van de
-  // move-lus, zodat een voorzet die tijdens het nadenken van de bot wordt gegeven
-  // niet gemist wordt of blijft hangen.
+  // Speel de voorzetten af zodra de speler weer aan zet is: één per beurt, en de
+  // rest blijft staan voor de volgende keer. De kop wordt eerst van de stapel gehaald
+  // (in de ref, niet pas in de state), zodat een tweede ronde dezelfde zet niet nog
+  // eens speelt.
   useEffect(() => {
     if (busy || !game) return;
     if (game.status !== "ongoing" || !game.player_turn) return;
-    const pm = premoveRef.current;
-    if (!pm) return;
-    premoveRef.current = null;
-    setPremove(null);
-    if (!premoveIsLegal(game.fen, pm)) {
-      showNotice("Voorzet verviel: die zet is niet mogelijk na de zet van de bot.");
+    if (inFlightRef.current) return;
+    const wachtrij = premovesRef.current;
+    if (wachtrij.length === 0) return;
+    const [volgende, ...rest] = wachtrij;
+    zetVoorzetten(rest);
+    if (!premoveIsLegal(game.fen, volgende)) {
+      zetVoorzetten([]);
+      showNotice("Voorzet verviel: die zet kon niet meer.");
       return;
     }
-    void playerMove(premoveToUci(pm));
-  }, [game, busy, playerMove, showNotice]);
+    void playerMove(premoveToUci(volgende));
+  }, [game, busy, playerMove, showNotice, zetVoorzetten]);
 
   const undo = useCallback(() => {
     const id = gameIdRef.current;
     if (!id) return;
     clearPremove();
-    void apply(api.undo(id)).then(loadHistory);
-  }, [apply, clearPremove, loadHistory]);
+    void metSlot(async () => {
+      const snap = await apply(api.undo(id));
+      await loadHistory();
+      return snap;
+    });
+  }, [apply, clearPremove, loadHistory, metSlot]);
 
   const resign = useCallback(() => {
     const id = gameIdRef.current;
     if (!id) return;
     clearPremove();
-    void apply(api.resign(id)).then(loadHistory);
-  }, [apply, clearPremove, loadHistory]);
+    void metSlot(async () => {
+      const snap = await apply(api.resign(id));
+      await loadHistory();
+      return snap;
+    });
+  }, [apply, clearPremove, loadHistory, metSlot]);
 
   const offerDraw = useCallback(async () => {
     const id = gameIdRef.current;
     if (!id) return;
     clearPremove();
-    try {
-      const result = await api.draw(id);
-      await apply(Promise.resolve(result.game));
-      if (!result.accepted) {
-        showNotice("De bot slaat je remiseaanbod af.");
-      } else {
-        showNotice("Remise aangenomen.");
+    await metSlot(async () => {
+      try {
+        const result = await api.draw(id);
+        await apply(Promise.resolve(result.game));
+        if (!result.accepted) {
+          showNotice("De bot slaat je remiseaanbod af.");
+        } else {
+          showNotice("Remise aangenomen.");
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    await loadHistory();
-  }, [apply, clearPremove, showNotice, loadHistory]);
+      await loadHistory();
+      return null;
+    });
+  }, [apply, clearPremove, showNotice, loadHistory, metSlot]);
 
   const getHint = useCallback(async () => {
     const id = gameIdRef.current;
@@ -296,10 +353,18 @@ export function useGame() {
     [stockfishAvailable],
   );
 
+  // Alleen verversen als er niets onderweg is: een oudere lezing mag een zet die net
+  // gedaan is niet overschrijven (dat gaf het bord een terugspringend beeld).
   const refresh = useCallback(() => {
     const id = gameIdRef.current;
-    if (!id) return;
-    void api.getGame(id).then(setGame).catch(() => undefined);
+    if (!id || inFlightRef.current) return;
+    void api
+      .getGame(id)
+      .then((snap) => {
+        if (inFlightRef.current || snap.id !== gameIdRef.current) return;
+        setGame(snap);
+      })
+      .catch(() => undefined);
   }, []);
 
   const removeGame = useCallback(
@@ -335,7 +400,7 @@ export function useGame() {
     hint,
     evalResult,
     stockfishAvailable,
-    premove,
+    premoves,
     notice,
     profile,
     review,
@@ -358,6 +423,7 @@ export function useGame() {
     refresh,
     leaveGame,
     queuePremove,
+    undoPremove,
     clearPremove,
     clearError: () => setError(null),
     loadHistory,

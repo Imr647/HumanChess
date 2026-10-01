@@ -194,7 +194,7 @@ export default function App() {
   const statusMessage = ongoing
     ? game.player_turn
       ? "Jouw zet"
-      : g.premove
+      : g.premoves.length > 0
         ? "Voorzet gepland — wacht op de bot"
         : `${game.bot.name} denkt...`
     : `${statusLabel(game.status)} — ${resultText(game) ?? ""}`;
@@ -272,6 +272,11 @@ export default function App() {
         <div className="board-column">
           <div className="board-toolbar">
             <button onClick={() => setFlipped((v) => !v)}>Draai bord</button>
+            {!free && g.premoves.length > 0 && (
+              <button className="ghost" onClick={g.undoPremove}>
+                Laatste voorzet weg
+              </button>
+            )}
             {!ongoing && !free && <button onClick={startFree}>Vrij analyseren</button>}
             {free && (
               <button onClick={undoFree} disabled={free.moves.length === 0}>
@@ -332,7 +337,7 @@ export default function App() {
           <Board
             game={game}
             mode={mode}
-            premove={free ? null : g.premove}
+            premoves={free ? [] : g.premoves}
             onMove={free ? playFree : (uci) => void g.playerMove(uci)}
             onPremove={g.queuePremove}
             onClearPremove={g.clearPremove}
@@ -376,14 +381,17 @@ export default function App() {
               Vrij analyseren: je mag voor beide partijen zetten; Stockfish beoordeelt de stelling.
             </p>
           )}
-          {mode === "premove" && !g.premove && (
+          {mode === "premove" && g.premoves.length === 0 && (
             <p className="muted premove-tip">
-              Je kunt alvast je volgende zet aangeven (voorzet).
+              Je kunt alvast je volgende zet aangeven (voorzet), en daar meteen nog een
+              achteraan zetten.
             </p>
           )}
-          {g.premove && mode === "premove" && (
+          {mode === "premove" && g.premoves.length > 0 && (
             <p className="muted premove-tip">
-              Voorzet gepland. Rechtsklik of sleep terug om te wissen.
+              {g.premoves.length === 1
+                ? "1 voorzet gepland. Rechtsklik wist hem."
+                : `${g.premoves.length} voorzetten gepland. Rechtsklik wist ze allemaal.`}
             </p>
           )}
           {g.hint?.san && <div className="hint-line">Hint: {g.hint.san}</div>}

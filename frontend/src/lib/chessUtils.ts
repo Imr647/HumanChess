@@ -196,3 +196,21 @@ export function applyFreeMove(fen: string, uci: string): { fen: string; san: str
   }
   return null;
 }
+
+/**
+ * Past de geplande voorzetten toe zodat het bord ze alvast voorschotelt, net als op
+ * chess.com. Lukt een voorzet niet (bijvoorbeeld omdat er nog een eigen stuk in de weg
+ * staat), dan blijven die en de volgende staan tot het echt zover is.
+ */
+export function premoveChain(
+  fen: string,
+  premoves: { from: string; to: string; promotion?: string | null }[],
+): string {
+  let huidig = fen;
+  for (const pm of premoves) {
+    const volgende = applyFreeMove(huidig, `${pm.from}${pm.to}${pm.promotion ?? ""}`);
+    if (!volgende) break;
+    huidig = volgende.fen;
+  }
+  return huidig;
+}

@@ -2,7 +2,7 @@ import { Chess, type Square } from "chess.js";
 import { useEffect, useMemo, useState } from "react";
 import { Chessboard, type Arrow } from "react-chessboard";
 
-import { lastMoveSquares } from "../lib/chessUtils";
+import { lastMoveSquares, premoveChain } from "../lib/chessUtils";
 import type { GameSnapshot, Premove } from "../lib/types";
 
 type BoardMode = "move" | "premove" | "locked";
@@ -10,7 +10,7 @@ type BoardMode = "move" | "premove" | "locked";
 interface BoardProps {
   game: GameSnapshot;
   mode: BoardMode;
-  premove: Premove | null;
+  premoves: Premove[];
   onMove: (uci: string) => void;
   onPremove: (pm: Premove) => void;
   onClearPremove?: () => void;
@@ -35,7 +35,7 @@ const PREMOVE_COLOR = "rgba(186, 104, 255, 0.55)";
 export default function Board({
   game,
   mode,
-  premove,
+  premoves,
   onMove,
   onPremove,
   onClearPremove,
@@ -55,12 +55,17 @@ export default function Board({
 
   const position = fenOverride ?? game.fen;
   const lastMove = lastMoveOverride ?? game.last_move;
-  const board = useMemo(() => new Chess(position), [position]);
+  // Met geplande voorzetten laat het bord de stelling alvast zien zoals hij wordt.
+  const shown = useMemo(
+    () => (premoves.length ? premoveChain(position, premoves) : position),
+    [position, premoves],
+  );
+  const board = useMemo(() => new Chess(shown), [shown]);
   const playerChar = game.player_color === "white" ? "w" : "b";
 
   useEffect(() => {
     setSelected(null);
-  }, [position, mode]);
+  }, [shown, mode]);
 
   const needsPromotion = (from: string, to: string) => {
     const piece = board.get(from as Square);
@@ -89,9 +94,10 @@ export default function Board({
         background: "radial-gradient(circle, rgba(255,0,0,0.55) 30%, transparent 72%)",
       };
     }
-    if (premove) {
-      styles[premove.from] = { background: PREMOVE_COLOR };
-      styles[premove.to] = { background: PREMOVE_COLOR };
+    const laatsteVoorzet = premoves[premoves.length - 1];
+    if (laatsteVoorzet) {
+      styles[laatsteVoorzet.from] = { background: PREMOVE_COLOR };
+      styles[laatsteVoorzet.to] = { background: PREMOVE_COLOR };
     }
     if (selected) {
       styles[selected] = { background: "rgba(255, 235, 59, 0.45)" };
@@ -103,7 +109,7 @@ export default function Board({
       }
     }
     return styles;
-  }, [board, lastMove, kingSquare, premove, selected]);
+  }, [board, lastMove, kingSquare, premoves, selected]);
 
   const squareRenderer = useMemo(() => {
     if (!badges || Object.keys(badges).length === 0) return undefined;
@@ -130,12 +136,14 @@ export default function Board({
   }, [badges, squareStyles]);
 
   const boardArrows = useMemo(() => {
-    if (!premove) return arrows;
-    return [
-      ...arrows,
-      { startSquare: premove.from, endSquare: premove.to, color: "#b466ff" },
-    ];
-  }, [arrows, premove]);
+    if (premoves.length === 0) return arrows;
+    const gepland: Arrow[] = premoves.map((pm, i) => ({
+      startSquare: pm.from,
+      endSquare: pm.to,
+      color: i === premoves.length - 1 ? "#b466ff" : "#c9a2ff",
+    }));
+    return [...arrows, ...gepland];
+  }, [arrows, premoves]);
 
   const queuePremove = (from: string, to: string) => {
     if (needsPromotion(from, to)) {
@@ -235,14 +243,14 @@ export default function Board({
         key={resetKey}
         options={{
           id: "humanchess-board",
-          position,
+          position: shown,
           boardOrientation: orientation ?? game.player_color,
           allowDragging: mode !== "locked",
           canDragPiece: ({ piece }) => mode !== "locked" && (freeMode || piece.pieceType[0] === playerChar),
           onPieceDrop: handleDrop,
           onSquareClick: handleSquareClick,
           onSquareRightClick: () => {
-            if (premove) onClearPremove?.();
+            if (premoves.length) onClearPremove?.();
           },
           squareStyles,
           squareRenderer,
