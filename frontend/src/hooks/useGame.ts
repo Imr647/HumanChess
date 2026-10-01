@@ -49,6 +49,9 @@ export function useGame() {
   // elkaar naar de server gaan en elkaar overschrijven.
   const inFlightRef = useRef(false);
   const seqRef = useRef(0);
+  // Teller die omhoog gaat zodra het slot weer vrij is, zodat een geplande voorzet
+  // opnieuw bekeken wordt in plaats van te blijven liggen.
+  const [lockTick, setLockTick] = useState(0);
   const noticeTimerRef = useRef<number | null>(null);
   const lastConfigRef = useRef<NewGameConfig | null>(null);
 
@@ -152,6 +155,7 @@ export function useGame() {
       return await werk();
     } finally {
       inFlightRef.current = false;
+      setLockTick((n) => n + 1);
     }
   }, []);
 
@@ -182,12 +186,21 @@ export function useGame() {
   );
 
   const playerMove = useCallback(
-    async (uci: string) => {
+    async (uci: string, alsVoorzet = false) => {
       const id = gameIdRef.current;
       if (!id) return null;
       if (inFlightRef.current) {
-        showNotice("Even wachten: de vorige zet is nog bezig.");
-        return null;
+        if (!alsVoorzet) {
+          showNotice("Even wachten: de vorige zet is nog bezig.");
+          return null;
+        }
+        // Een voorzet mag even wachten tot het slot vrij is; hij mag niet vervallen
+        // alleen omdat er net iets anders liep.
+        const grens = Date.now() + 5000;
+        while (inFlightRef.current && Date.now() < grens) {
+          await new Promise((r) => window.setTimeout(r, 25));
+        }
+        if (inFlightRef.current) return null;
       }
       return metSlot(async () => {
         const snap = await apply(api.move(id, uci));
@@ -204,21 +217,43 @@ export function useGame() {
   // rest blijft staan voor de volgende keer. De kop wordt eerst van de stapel gehaald
   // (in de ref, niet pas in de state), zodat een tweede ronde dezelfde zet niet nog
   // eens speelt.
-  useEffect(() => {
+  const speelVoorzet = useCallback(() => {
     if (busy || !game) return;
     if (game.status !== "ongoing" || !game.player_turn) return;
     if (inFlightRef.current) return;
     const wachtrij = premovesRef.current;
     if (wachtrij.length === 0) return;
-    const [volgende, ...rest] = wachtrij;
-    zetVoorzetten(rest);
+    const volgende = wachtrij[0];
     if (!premoveIsLegal(game.fen, volgende)) {
       zetVoorzetten([]);
       showNotice("Voorzet verviel: die zet kon niet meer.");
       return;
     }
-    void playerMove(premoveToUci(volgende));
-  }, [game, busy, playerMove, showNotice, zetVoorzetten]);
+    // Eerst van de stapel halen (in de ref, dus meteen), dan pas zetten: zo kan
+    // dezelfde voorzet nooit twee keer gespeeld worden.
+    zetVoorzetten(wachtrij.slice(1));
+    void playerMove(premoveToUci(volgende), true);
+  }, [busy, game, playerMove, showNotice, zetVoorzetten]);
+
+  useEffect(() => {
+    speelVoorzet();
+  }, [speelVoorzet, lockTick]);
+
+  // Vangnet voor het geval een ronde gemist wordt (traag toestel, scherm uit
+  // geweest, net een zet van de bot tegelijk): elke twee seconden opnieuw kijken.
+  useEffect(() => {
+    const id = window.setInterval(speelVoorzet, 2000);
+    return () => window.clearInterval(id);
+  }, [speelVoorzet]);
+
+  // Terug uit de achtergrond: meteen weer kijken.
+  useEffect(() => {
+    const bijZicht = () => {
+      if (document.visibilityState === "visible") setLockTick((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", bijZicht);
+    return () => document.removeEventListener("visibilitychange", bijZicht);
+  }, []);
 
   const undo = useCallback(() => {
     const id = gameIdRef.current;

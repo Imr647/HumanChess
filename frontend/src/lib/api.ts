@@ -11,11 +11,30 @@ import type {
 
 const BASE = "/api";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+const STANDAARD_TIMEOUT = 30_000;
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = STANDAARD_TIMEOUT,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = timeoutMs > 0 ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...init,
+    });
+  } catch (e) {
+    if (timer !== null) window.clearTimeout(timer);
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error("De schaakdienst reageert niet. Probeer het nog eens.");
+    }
+    throw e instanceof Error ? e : new Error(String(e));
+  }
+  if (timer !== null) window.clearTimeout(timer);
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -57,14 +76,15 @@ export const api = {
       { method: "POST" },
     ),
   evaluate: (id: string, multipv = 3) =>
-    request<EvalResult>(`/games/${id}/eval?multipv=${multipv}`),
+    request<EvalResult>(`/games/${id}/eval?multipv=${multipv}`, undefined, 90_000),
   analyse: (fen: string, multipv = 3, depth = 0) =>
     request<EvalResult>("/analyse", {
       method: "POST",
       body: JSON.stringify({ fen, multipv, depth }),
     }),
+  // De beoordeling van een lange partij mag lang duren: geen tijdslimiet.
   review: (id: string, depth = 0) =>
-    request<ReviewResult>(`/games/${id}/review?depth=${depth}`),
+    request<ReviewResult>(`/games/${id}/review?depth=${depth}`, undefined, 0),
   pgn: async (id: string): Promise<string> => {
     const res = await fetch(`${BASE}/games/${id}/pgn`);
     if (!res.ok) throw new Error("Kon PGN niet ophalen");
