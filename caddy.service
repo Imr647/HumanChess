@@ -1,0 +1,14 @@
+[Unit]
+Description=Caddy reverse proxy voor HumanChess (poort 80)
+After=network-online.target humanchess.service
+Wants=network-online.target humanchess.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/i647/humanchess
+ExecStart=/home/i647/humanchess/bin/caddy run --config /home/i647/humanchess/deploy/Caddyfile
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

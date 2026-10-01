@@ -19,15 +19,26 @@ fi
 echo "==> Frontend bouwen"
 (cd frontend && npm install --silent && npm run build)
 
-echo "==> systemd service installeren en herstarten"
+echo "==> Caddy ophalen (reverse proxy op poort 80)"
+./scripts/download_caddy.sh
+
+echo "==> systemd services installeren en herstarten"
 mkdir -p "$HOME/.config/systemd/user"
-ln -sf "$ROOT/humanchess.service" "$HOME/.config/systemd/user/humanchess.service"
+for unit in humanchess caddy avahi-alias; do
+    ln -sf "$ROOT/$unit.service" "$HOME/.config/systemd/user/$unit.service"
+done
 systemctl --user daemon-reload
-systemctl --user enable --now humanchess
+systemctl --user enable --now humanchess caddy avahi-alias
 systemctl --user restart humanchess
+sleep 1
+systemctl --user restart caddy avahi-alias
 sleep 2
-systemctl --user --no-pager --lines=5 status humanchess || true
+for unit in humanchess caddy avahi-alias; do
+    systemctl --user --no-pager --lines=3 status "$unit" || true
+done
 
 IP="$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')"
 echo
-echo "HumanChess draait op http://${IP:-localhost}:8100"
+echo "HumanChess:      http://${IP:-localhost}:8100"
+echo "Via proxy :80:   http://${IP:-localhost}"
+echo "Vriendelijke naam: http://chess.local"
