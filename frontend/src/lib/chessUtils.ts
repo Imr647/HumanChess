@@ -66,6 +66,38 @@ export function uciAtPly(game: GameSnapshot, ply: number): string | null {
   return game.moves[ply]?.uci ?? null;
 }
 
+const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+const WHITE_GLYPHS: Record<string, string> = { p: "♙", n: "♘", b: "♗", r: "♖", q: "♕" };
+const BLACK_GLYPHS: Record<string, string> = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛" };
+
+export function pieceGlyph(symbol: string, color: "white" | "black"): string {
+  return (color === "white" ? WHITE_GLYPHS : BLACK_GLYPHS)[symbol] ?? "";
+}
+
+export interface CapturedSummary {
+  byWhite: string[];
+  byBlack: string[];
+  whiteValue: number;
+  blackValue: number;
+}
+
+export function capturedUpTo(game: GameSnapshot, index: number): CapturedSummary {
+  const chess = new Chess(game.initial_fen ?? undefined);
+  const byWhite: string[] = [];
+  const byBlack: string[] = [];
+  const limit = Math.max(0, Math.min(index, game.moves.length));
+  for (let i = 0; i < limit; i += 1) {
+    const move = chess.move(game.moves[i].uci);
+    if (move.captured) {
+      if (move.color === "w") byWhite.push(move.captured);
+      else byBlack.push(move.captured);
+    }
+  }
+  const sum = (list: string[]) => list.reduce((total, p) => total + (PIECE_VALUE[p] ?? 0), 0);
+  return { byWhite, byBlack, whiteValue: sum(byWhite), blackValue: sum(byBlack) };
+}
+
 export function statusLabel(status: GameStatus): string {
   switch (status) {
     case "ongoing":

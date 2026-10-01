@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { statusLabel } from "../lib/chessUtils";
 import type { Bot, GameSummary, NewGameConfig } from "../lib/types";
+import Avatar from "./Avatar";
 
 interface SetupPanelProps {
   bots: Bot[];
@@ -80,8 +81,13 @@ export default function SetupPanel({
                 className={`bot-card ${bot.id === botId ? "selected" : ""}`}
                 onClick={() => setBotId(bot.id)}
               >
-                <span className="bot-name">{bot.name}</span>
-                <span className="bot-elo">Elo {bot.elo}</span>
+                <span className="bot-card-head">
+                  <Avatar name={bot.name} color={bot.color} size={38} />
+                  <span className="bot-card-meta">
+                    <span className="bot-name">{bot.name}</span>
+                    <span className="bot-elo">Elo {bot.elo}</span>
+                  </span>
+                </span>
                 <span className="bot-desc">{bot.description}</span>
               </button>
             ))}

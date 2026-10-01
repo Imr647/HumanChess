@@ -128,6 +128,21 @@ def test_import_pgn():
         assert data["moves"][2]["san"] == "Nf3"
 
 
+def test_draw_offer():
+    with TestClient(app) as client:
+        game = client.post(
+            "/api/games",
+            json={"bot_id": "mo", "player_color": "white"},
+        ).json()
+        resp = client.post(f"/api/games/{game['id']}/draw")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "accepted" in data
+        assert data["game"]["id"] == game["id"]
+        if data["accepted"]:
+            assert data["game"]["status"] == "draw"
+
+
 def test_hint():
     with TestClient(app) as client:
         game = client.post(

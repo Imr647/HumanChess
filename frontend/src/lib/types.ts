@@ -7,7 +7,14 @@ export interface Bot {
   description: string;
   temperature: number;
   top_p: number;
+  think_ms?: number;
+  color: string;
   model: string;
+}
+
+export interface DrawResponse {
+  accepted: boolean;
+  game: GameSnapshot;
 }
 
 export interface MoveEntry {
@@ -89,7 +96,7 @@ export interface ReviewResult {
 export interface GameSnapshot {
   id: string;
   initial_fen: string | null;
-  bot: { id: string; name: string; elo: number; description: string };
+  bot: { id: string; name: string; elo: number; description: string; color: string };
   player_color: Color;
   fen: string;
   turn: Color;

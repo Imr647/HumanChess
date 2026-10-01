@@ -161,10 +161,22 @@ def resign(game_id: str) -> dict:
 @app.post("/api/games/{game_id}/draw")
 def draw(game_id: str) -> dict:
     session = _get_session(game_id)
+    accepted = True
     with _lock:
-        session.agree_draw()
+        if session.status == "ongoing" and stockfish.stockfish.available():
+            analysis = stockfish.stockfish.analyse(session.board(), multipv=1)
+            score = analysis["lines"][0]["score"]
+            if score["type"] == "mate":
+                cp = 10000 if (score["value"] or 0) > 0 else -10000
+            else:
+                cp = score["value"] or 0
+            white_prob = 1.0 / (1.0 + 10 ** (-cp / 400.0))
+            bot_prob = white_prob if not session.player_is_white else 1.0 - white_prob
+            accepted = bot_prob <= 0.55
+        if accepted:
+            session.agree_draw()
     _save(session)
-    return session.snapshot()
+    return {"accepted": accepted, "game": session.snapshot()}
 
 
 @app.post("/api/games/{game_id}/hint")

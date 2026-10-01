@@ -42,6 +42,7 @@ export function useGame() {
   const gameIdRef = useRef<string | null>(null);
   const premoveRef = useRef<Premove | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
+  const lastConfigRef = useRef<NewGameConfig | null>(null);
 
   useEffect(() => {
     api.bots().then(setBots).catch((e) => setError(String(e.message ?? e)));
@@ -105,10 +106,20 @@ export function useGame() {
   const startGame = useCallback(
     (config: NewGameConfig) => {
       clearPremove();
+      lastConfigRef.current = config;
       return apply(api.createGame(config));
     },
     [apply, clearPremove],
   );
+
+  const rematch = useCallback(() => {
+    const config = lastConfigRef.current;
+    if (!config) return Promise.resolve(null);
+    return startGame({
+      ...config,
+      player_color: config.player_color === "white" ? "black" : "white",
+    });
+  }, [startGame]);
 
   const openGame = useCallback(
     (id: string) => {
@@ -159,12 +170,23 @@ export function useGame() {
     void apply(api.resign(id)).then(loadHistory);
   }, [apply, clearPremove, loadHistory]);
 
-  const offerDraw = useCallback(() => {
+  const offerDraw = useCallback(async () => {
     const id = gameIdRef.current;
     if (!id) return;
     clearPremove();
-    void apply(api.draw(id)).then(loadHistory);
-  }, [apply, clearPremove, loadHistory]);
+    try {
+      const result = await api.draw(id);
+      await apply(Promise.resolve(result.game));
+      if (!result.accepted) {
+        showNotice("De bot slaat je remiseaanbod af.");
+      } else {
+        showNotice("Remise aangenomen.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    await loadHistory();
+  }, [apply, clearPremove, showNotice, loadHistory]);
 
   const getHint = useCallback(async () => {
     const id = gameIdRef.current;
@@ -272,6 +294,7 @@ export function useGame() {
     runReview,
     clearReview,
     startGame,
+    rematch,
     openGame,
     playerMove,
     undo,

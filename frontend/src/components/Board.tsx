@@ -17,6 +17,8 @@ interface BoardProps {
   fenOverride?: string | null;
   lastMoveOverride?: string | null;
   badges?: Record<string, { symbol: string; cls: string; big: boolean }>;
+  orientation?: "white" | "black";
+  showCoords?: boolean;
 }
 
 const PROMOTION_PIECES = [
@@ -38,6 +40,8 @@ export default function Board({
   fenOverride = null,
   lastMoveOverride = null,
   badges,
+  orientation,
+  showCoords = true,
 }: BoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [promotion, setPromotion] = useState<
@@ -226,7 +230,7 @@ export default function Board({
         options={{
           id: "humanchess-board",
           position,
-          boardOrientation: game.player_color,
+          boardOrientation: orientation ?? game.player_color,
           allowDragging: mode !== "locked",
           canDragPiece: ({ piece }) => mode !== "locked" && piece.pieceType[0] === playerChar,
           onPieceDrop: handleDrop,
@@ -237,7 +241,7 @@ export default function Board({
           darkSquareStyle: { backgroundColor: "#6d8fae" },
           lightSquareStyle: { backgroundColor: "#e6ebf0" },
           animationDurationInMs: 200,
-          showNotation: true,
+          showNotation: showCoords,
         }}
       />
       {promotion && (

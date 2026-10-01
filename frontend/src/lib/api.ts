@@ -1,5 +1,6 @@
 import type {
   Bot,
+  DrawResponse,
   EvalResult,
   GameSnapshot,
   GameSummary,
@@ -47,7 +48,7 @@ export const api = {
   resign: (id: string) =>
     request<GameSnapshot>(`/games/${id}/resign`, { method: "POST" }),
   draw: (id: string) =>
-    request<GameSnapshot>(`/games/${id}/draw`, { method: "POST" }),
+    request<DrawResponse>(`/games/${id}/draw`, { method: "POST" }),
   hint: (id: string) =>
     request<{ best_move: string | null; best_san: string | null }>(
       `/games/${id}/hint`,

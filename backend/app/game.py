@@ -246,6 +246,7 @@ class GameSession:
                 "name": self.bot.name,
                 "elo": self.bot.elo,
                 "description": self.bot.description,
+                "color": self.bot.color,
             },
             "player_color": self.player_color,
             "fen": board.fen(),

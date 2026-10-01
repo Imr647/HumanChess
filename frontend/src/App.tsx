@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Arrow } from "react-chessboard";
 
+import Avatar from "./components/Avatar";
 import Board from "./components/Board";
 import Clock from "./components/Clock";
 import EvalBar from "./components/EvalBar";
@@ -11,16 +12,26 @@ import SetupPanel from "./components/SetupPanel";
 import {
   CLASS_LABELS,
   CLASS_SYMBOLS,
+  capturedUpTo,
   fenAtIndex,
   resultText,
   statusLabel,
   uciAtPly,
 } from "./lib/chessUtils";
+import { sounds } from "./lib/sounds";
 import { useGame } from "./hooks/useGame";
 
 export default function App() {
   const g = useGame();
   const [previewPly, setPreviewPly] = useState<number | null>(null);
+  const [flipped, setFlipped] = useState(false);
+  const [showCoords, setShowCoords] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const prevRef = useRef<{ moves: number; status: string }>({ moves: 0, status: "none" });
+
+  useEffect(() => {
+    setMuted(sounds.load());
+  }, []);
 
   const gameId = g.game?.id ?? null;
   useEffect(() => {
@@ -29,6 +40,26 @@ export default function App() {
 
   const totalPositions = g.game?.moves.length ?? 0;
   const previewing = previewPly !== null;
+
+  useEffect(() => {
+    const game = g.game;
+    if (!game) {
+      prevRef.current = { moves: 0, status: "none" };
+      return;
+    }
+    const prev = prevRef.current;
+    const isNewMove = game.moves.length > prev.moves;
+    if (isNewMove) {
+      const last = game.moves[game.moves.length - 1];
+      if (game.status !== "ongoing") sounds.end();
+      else if (game.in_check) sounds.check();
+      else if (last?.san.includes("x")) sounds.capture();
+      else sounds.move();
+    } else if (game.status !== prev.status && game.status !== "ongoing") {
+      sounds.end();
+    }
+    prevRef.current = { moves: game.moves.length, status: game.status };
+  }, [g.game]);
 
   useEffect(() => {
     if (!previewing) return;
@@ -137,6 +168,12 @@ export default function App() {
 
   const game = g.game;
   const ongoing = game.status === "ongoing";
+  const orientation: "white" | "black" = flipped
+    ? game.player_color === "white"
+      ? "black"
+      : "white"
+    : game.player_color;
+  const captured = capturedUpTo(game, previewing ? previewPly ?? 0 : game.moves.length);
   const mode: "move" | "premove" | "locked" = previewing
     ? "locked"
     : !ongoing
@@ -168,20 +205,36 @@ export default function App() {
     <div className="app game-layout">
       {errorBanner}
       <header className="game-header">
-        <div>
-          <span className="vs">Jij</span>
-          <span className="vs-sep">
-            {game.player_color === "white" ? "(wit)" : "(zwart)"} vs
-          </span>
-          <span className="vs">
-            {game.bot.name} ({game.bot.elo})
-          </span>
+        <div className="header-players">
+          <Avatar name={game.bot.name} color={game.bot.color} size={34} />
+          <span className="vs">{game.bot.name} ({game.bot.elo})</span>
+          <span className="vs-sep">vs</span>
+          <Avatar name="Jij" color="#475569" size={34} />
+          <span className="vs">Jij ({game.player_color === "white" ? "wit" : "zwart"})</span>
         </div>
         <div className={`status-pill ${ongoing ? "" : "done"}`}>{statusMessage}</div>
       </header>
 
       <main className="game-main">
         <div className="board-column">
+          <div className="board-toolbar">
+            <button onClick={() => setFlipped((v) => !v)}>Draai bord</button>
+            <button className={showCoords ? "" : "ghost"} onClick={() => setShowCoords((v) => !v)}>
+              Coördinaten {showCoords ? "aan" : "uit"}
+            </button>
+            <button
+              className={muted ? "ghost" : ""}
+              onClick={() => {
+                const next = !muted;
+                setMuted(next);
+                sounds.setMuted(next);
+                if (!next) sounds.move();
+              }}
+            >
+              Geluid {muted ? "uit" : "aan"}
+            </button>
+          </div>
+
           {previewing && g.review && (
             <div className="review-nav">
               <button onClick={() => setPreviewPly(0)} disabled={previewPly === 0}>
@@ -222,6 +275,8 @@ export default function App() {
             fenOverride={previewing ? fenAtIndex(game, previewPly ?? 0) : null}
             lastMoveOverride={previewing ? uciAtPly(game, (previewPly ?? 0) - 1) : null}
             badges={badges}
+            orientation={orientation}
+            showCoords={showCoords}
           />
           {selectedMove && (
             <div className={`move-comment ${selectedMove.classification}`}>
@@ -253,12 +308,17 @@ export default function App() {
 
         <aside className="sidebar">
           <div className="panel">
-            <h3>{game.bot.name}</h3>
+            <div className="panel-bot">
+              <Avatar name={game.bot.name} color={game.bot.color} size={44} />
+              <div>
+                <h3>{game.bot.name}</h3>
+                <p className="bot-elo-line">Elo {game.bot.elo}</p>
+              </div>
+            </div>
             <p className="muted">{game.bot.description}</p>
-            <p className="bot-elo-line">Elo {game.bot.elo}</p>
           </div>
 
-          <Clock game={game} onTimeout={g.refresh} />
+          <Clock game={game} captured={captured} onTimeout={g.refresh} />
 
           {ongoing && (
             <GameControls
@@ -277,9 +337,12 @@ export default function App() {
             />
           )}
           {!ongoing && (
-            <button className="primary" onClick={g.leaveGame}>
-              Nieuwe partij
-            </button>
+            <div className="end-actions">
+              <button className="primary" onClick={() => void g.rematch()}>
+                Rematch
+              </button>
+              <button onClick={g.leaveGame}>Andere bot</button>
+            </div>
           )}
 
           {g.stockfishAvailable && game.moves.length > 0 && (

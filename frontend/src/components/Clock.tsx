@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
-import { formatClock } from "../lib/chessUtils";
+import { formatClock, type CapturedSummary } from "../lib/chessUtils";
 import type { GameSnapshot } from "../lib/types";
+import Avatar from "./Avatar";
+import CapturedPieces from "./CapturedPieces";
 
 interface ClockProps {
   game: GameSnapshot;
+  captured: CapturedSummary;
   onTimeout: () => void;
 }
 
-export default function Clock({ game, onTimeout }: ClockProps) {
+export default function Clock({ game, captured, onTimeout }: ClockProps) {
   const [now, setNow] = useState(() => Date.now());
   const firedRef = useRef(false);
 
@@ -36,20 +39,38 @@ export default function Clock({ game, onTimeout }: ClockProps) {
     }
   }, [whiteMs, blackMs, running, onTimeout]);
 
-  const topColor = game.player_color === "white" ? "black" : "white";
+  const playerIsWhite = game.player_color === "white";
+  const topColor = playerIsWhite ? "black" : "white";
   const topMs = topColor === "white" ? whiteMs : blackMs;
-  const bottomMs = topColor === "white" ? blackMs : whiteMs;
+  const bottomMs = playerIsWhite ? whiteMs : blackMs;
   const topActive = running && game.turn === topColor;
   const bottomActive = running && game.turn !== topColor;
+
+  const botCaptured = playerIsWhite ? captured.byBlack : captured.byWhite;
+  const playerCaptured = playerIsWhite ? captured.byWhite : captured.byBlack;
+  const botCapturedColor: "white" | "black" = playerIsWhite ? "white" : "black";
+  const playerCapturedColor: "white" | "black" = playerIsWhite ? "black" : "white";
+  const botAdvantage = playerIsWhite
+    ? captured.blackValue - captured.whiteValue
+    : captured.whiteValue - captured.blackValue;
+  const playerAdvantage = -botAdvantage;
 
   return (
     <div className="clock">
       <div className={`clock-row ${topActive ? "active" : ""} ${topMs <= 0 ? "low" : ""}`}>
-        <span>{game.bot.name}</span>
+        <Avatar name={game.bot.name} color={game.bot.color} size={32} />
+        <span className="clock-name">{game.bot.name}</span>
+        <CapturedPieces pieces={botCaptured} color={botCapturedColor} advantage={botAdvantage} />
         <span className="clock-time">{formatClock(topMs)}</span>
       </div>
       <div className={`clock-row ${bottomActive ? "active" : ""} ${bottomMs <= 0 ? "low" : ""}`}>
-        <span>Jij</span>
+        <Avatar name="Jij" color="#475569" size={32} />
+        <span className="clock-name">Jij</span>
+        <CapturedPieces
+          pieces={playerCaptured}
+          color={playerCapturedColor}
+          advantage={playerAdvantage}
+        />
         <span className="clock-time">{formatClock(bottomMs)}</span>
       </div>
     </div>

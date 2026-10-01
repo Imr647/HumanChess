@@ -8,10 +8,13 @@ niveau op die van mensen lijken. Voor analyse en hints wordt
 
 ## Features
 
-- Speel tegen benoemde bots op verschillende Elo-niveaus
+- Speel tegen 12 benoemde bots (Elo 700–2500) met avatar en karakter
 - Kies je kleur en tijdsinstelling
-- Zettenlijst, undo, opgeven, remise aanbieden
+- Zettenlijst, undo, opgeven, remise aanbieden (bot kan weigeren)
 - Voorzetten (premove): plan je volgende zet terwijl de bot nadenkt
+- Geslagen stukken en materiaalvoordeel, bord draaien, coördinaten
+- Geluidseffecten (zet, slag, schaak, einde) met mute-knop
+- Rematch met dezelfde bot (wisselt van kleur)
 - Klok
 - PGN importeren en exporteren
 - Hint en eval-balk (Stockfish)
@@ -42,13 +45,9 @@ downloadt Stockfish, haalt de Maia-3 modellen op en installeert de frontend.
 
 ## Bots
 
-| Naam | Elo | Karakter |
-|------|-----|----------|
-| Pip | ~800 | rustig, maakt fouten |
-| Sanne | ~1200 | clubspeler |
-| Mo | ~1600 | degelijk |
-| Yara | ~1900 | sterk |
-| Viktor | ~2200 | expert |
+Twaalf persona's van Elo 700 tot 2500 (Timo, Pip, Lotte, Sanne, Bram, Mo, Noor,
+Yara, Daan, Viktor, Elin, Max). Elke bot heeft een eigen karakter, kleur en
+bedenktijd; de sterkte komt uit het Elo-condititioneren van het Maia-model.
 
 ## Licentie
 
