@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import random
 import time
 import uuid
@@ -330,7 +331,7 @@ def new_game(
 
 
 def game_from_pgn(pgn_text: str, bot_id: str, player_color: str) -> GameSession:
-    game = chess.pgn.read_game(pgn_text)
+    game = chess.pgn.read_game(io.StringIO(pgn_text))
     if game is None:
         raise ValueError("Kon geen geldige PGN lezen")
     board = game.board()

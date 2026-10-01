@@ -628,8 +628,17 @@ button.icon {
   font-weight: 700;
 }
 
+.review-move.brilliant .review-symbol {
+  color: #26c2a3;
+}
 .review-move.great .review-symbol {
   color: #5c8bb0;
+}
+.review-move.book .review-symbol {
+  color: #a88865;
+}
+.review-move.miss .review-symbol {
+  color: #ff7769;
 }
 .review-move.best .review-symbol {
   color: #81b64c;
@@ -670,6 +679,15 @@ button.icon {
 }
 .chip.great {
   color: #5c8bb0;
+}
+.chip.brilliant {
+  color: #26c2a3;
+}
+.chip.book {
+  color: #a88865;
+}
+.chip.miss {
+  color: #ff7769;
 }
 
 .review-foot {
@@ -731,8 +749,20 @@ button.icon {
   font-size: 0.78rem;
 }
 
+.legend-badge.brilliant {
+  background: #26c2a3;
+  color: #06251f;
+}
 .legend-badge.great {
   background: #5c8bb0;
+}
+.legend-badge.book {
+  background: #a88865;
+  color: #241a10;
+}
+.legend-badge.miss {
+  background: #ff7769;
+  color: #2a0c09;
 }
 .legend-badge.best {
   background: #81b64c;
@@ -786,8 +816,20 @@ button.icon {
   height: 22%;
 }
 
+.move-badge.brilliant {
+  background: #26c2a3;
+  color: #06251f;
+}
 .move-badge.great {
   background: #5c8bb0;
+}
+.move-badge.book {
+  background: #a88865;
+  color: #241a10;
+}
+.move-badge.miss {
+  background: #ff7769;
+  color: #2a0c09;
 }
 .move-badge.best {
   background: #81b64c;
@@ -842,6 +884,15 @@ button.icon {
 }
 .move-comment.great {
   border-color: #5c8bb0;
+}
+.move-comment.brilliant {
+  border-color: #26c2a3;
+}
+.move-comment.book {
+  border-color: #a88865;
+}
+.move-comment.miss {
+  border-color: #ff7769;
 }
 
 .move-comment-head {

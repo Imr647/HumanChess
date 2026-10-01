@@ -36,12 +36,15 @@ export type GameStatus =
   | "timeout";
 
 export type MoveClass =
+  | "brilliant"
   | "great"
   | "best"
   | "excellent"
   | "good"
+  | "book"
   | "inaccuracy"
   | "mistake"
+  | "miss"
   | "blunder";
 
 export interface ReviewMove {
@@ -62,12 +65,15 @@ export interface ReviewMove {
 
 export interface ReviewSummary {
   accuracy: number;
+  brilliant: number;
   great: number;
   best: number;
   excellent: number;
   good: number;
+  book: number;
   inaccuracy: number;
   mistake: number;
+  miss: number;
   blunder: number;
 }
 

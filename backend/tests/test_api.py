@@ -101,14 +101,31 @@ def test_review():
         assert data["summary"]["white"]["accuracy"] > 0
         assert data["moves"][0]["comment"]
         assert data["moves"][0]["classification"] in {
+            "brilliant",
             "great",
             "best",
             "excellent",
             "good",
+            "book",
             "inaccuracy",
             "mistake",
+            "miss",
             "blunder",
         }
+
+
+def test_import_pgn():
+    with TestClient(app) as client:
+        pgn = '[Event "Test"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *'
+        resp = client.post(
+            "/api/games/import",
+            json={"pgn": pgn, "bot_id": "mo", "player_color": "white"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["moves"]) == 3
+        assert data["moves"][0]["san"] == "e4"
+        assert data["moves"][2]["san"] == "Nf3"
 
 
 def test_hint():

@@ -3,42 +3,54 @@ import { Chess } from "chess.js";
 import type { EvalLine, GameSnapshot, GameStatus, MoveClass } from "./types";
 
 export const CLASS_LABELS: Record<MoveClass, string> = {
+  brilliant: "Briljant",
   great: "Geweldig",
   best: "Beste",
   excellent: "Uitstekend",
   good: "Goed",
+  book: "Boek",
   inaccuracy: "Onnauwkeurig",
   mistake: "Fout",
+  miss: "Gemiste kans",
   blunder: "Blunder",
 };
 
 export const CLASS_SYMBOLS: Record<MoveClass, string> = {
+  brilliant: "!!",
   great: "!",
   best: "★",
   excellent: "✓",
   good: "✓",
+  book: "≡",
   inaccuracy: "?!",
   mistake: "?",
+  miss: "✗",
   blunder: "??",
 };
 
 export const CLASS_DESCRIPTIONS: Record<MoveClass, string> = {
+  brilliant: "Een sterk offer dat Stockfish als beste zet ziet.",
   great: "De enige goede zet — alle alternatieven zijn duidelijk slechter.",
   best: "Dezelfde zet die Stockfish zou spelen.",
   excellent: "Bijna net zo goed als de beste zet (≤ 2% verlies).",
   good: "Prima zet, iets minder dan de beste (≤ 5% verlies).",
+  book: "Een zet uit de openingstheorie.",
   inaccuracy: "Maakt je stelling iets slechter (≤ 10% verlies).",
   mistake: "Een duidelijke fout (≤ 20% verlies).",
+  miss: "Je pakt het voordeel van de tegenstander niet: een gemiste kans.",
   blunder: "Een grote fout (> 20% verlies).",
 };
 
 export const CLASS_ORDER: MoveClass[] = [
+  "brilliant",
   "great",
   "best",
   "excellent",
   "good",
+  "book",
   "inaccuracy",
   "mistake",
+  "miss",
   "blunder",
 ];
 
