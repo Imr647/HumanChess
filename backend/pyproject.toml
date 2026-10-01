@@ -1,0 +1,30 @@
+[project]
+name = "humanchess-backend"
+version = "0.1.0"
+description = "HumanChess backend: play against human-like Maia-3 bots"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-chess>=1.10",
+    "pydantic>=2.7",
+    "python-multipart>=0.0.9",
+    "maia3 @ git+https://github.com/CSSLab/maia3.git",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

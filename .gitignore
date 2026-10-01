@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Engines / models (large binaries, downloaded via scripts)
+bin/*
+!bin/.gitkeep
+data/*.db
+data/*.db-*
+*.pt
+*.onnx
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
