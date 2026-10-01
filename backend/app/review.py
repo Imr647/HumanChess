@@ -88,6 +88,20 @@ def _build_book() -> set[int]:
 BOOK_HASHES = _build_book()
 
 
+def _terminal_score(board: chess.Board) -> int | None:
+    """De score van een afgelopen stelling, of None als er nog gespeeld wordt.
+
+    Een schaakmat krijgt hier bewust +oneindig (of -oneindig) en niet de 0 die de
+    engine teruggeeft. Anders lijkt het of de mat die net gezet is weer verdwenen
+    is, en dan meldt de analyse bij een schaakmat dat je een mat hebt laten liggen.
+    """
+    if board.is_checkmate():
+        return -INFINITY_CP if board.turn == chess.WHITE else INFINITY_CP
+    if board.is_game_over(claim_draw=True):
+        return 0
+    return None
+
+
 def _score_cp(score: dict) -> int:
     if score["type"] == "mate":
         value = score["value"] or 0
@@ -153,6 +167,7 @@ def _comment(
     cp_before: int,
     cp_after: int,
     cp_loss: int,
+    is_best: bool = False,
 ) -> str:
     best = best_san or "een andere zet"
     if classification == "book":
@@ -170,7 +185,7 @@ def _comment(
 
     extras: list[str] = []
     if classification not in ("book", "brilliant", "great", "miss"):
-        if cp_before >= INFINITY_CP and cp_after < INFINITY_CP:
+        if not is_best and cp_before >= INFINITY_CP and cp_after < INFINITY_CP:
             extras.append("Je liet een geforceerde mat liggen.")
         elif cp_after <= -INFINITY_CP and cp_before > -INFINITY_CP:
             extras.append("Dit geeft de tegenstander een geforceerde mat.")
@@ -220,6 +235,12 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
 
     evals = [_score_cp(a["lines"][0]["score"]) for a in analyses]
     best_moves = [a["best_move"] for a in analyses]
+
+    # Eindstanden overschrijven: een schaakmat is winst, geen 0.
+    for index, board in enumerate(boards):
+        einde = _terminal_score(board)
+        if einde is not None:
+            evals[index] = einde
 
     def second_cp(index: int) -> int | None:
         lines = analyses[index]["lines"]
@@ -301,6 +322,7 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
                     cp_before,
                     cp_after,
                     cp_loss,
+                    is_best=is_best,
                 ),
             }
         )
