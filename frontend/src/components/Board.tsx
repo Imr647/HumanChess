@@ -20,6 +20,7 @@ interface BoardProps {
   badges?: Record<string, { symbol: string; cls: string; big: boolean }>;
   orientation?: "white" | "black";
   showCoords?: boolean;
+  freeMode?: boolean;
 }
 
 const PROMOTION_PIECES = [
@@ -44,6 +45,7 @@ export default function Board({
   badges,
   orientation,
   showCoords = true,
+  freeMode = false,
 }: BoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [promotion, setPromotion] = useState<
@@ -209,7 +211,7 @@ export default function Board({
         return;
       }
     }
-    if (piece && piece.pieceType[0] === playerChar) {
+    if (piece && (freeMode || piece.pieceType[0] === playerChar)) {
       setSelected(square);
     } else {
       setSelected(null);
@@ -236,7 +238,7 @@ export default function Board({
           position,
           boardOrientation: orientation ?? game.player_color,
           allowDragging: mode !== "locked",
-          canDragPiece: ({ piece }) => mode !== "locked" && piece.pieceType[0] === playerChar,
+          canDragPiece: ({ piece }) => mode !== "locked" && (freeMode || piece.pieceType[0] === playerChar),
           onPieceDrop: handleDrop,
           onSquareClick: handleSquareClick,
           onSquareRightClick: () => {

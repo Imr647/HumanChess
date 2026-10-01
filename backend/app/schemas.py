@@ -38,3 +38,9 @@ class ImportRequest(BaseModel):
     pgn: str
     bot_id: str = "mo"
     player_color: Color = "white"
+
+
+class AnalyseRequest(BaseModel):
+    fen: str
+    multipv: int = Field(default=3, ge=1, le=5)
+    depth: int = Field(default=0, ge=0, le=30)

@@ -11,7 +11,7 @@ import chess.pgn
 
 from . import chat
 from .bots import BotPersona, get_bot
-from .config import BOT_THINK_JITTER, BOT_THINK_SCALE
+from .config import BOT_THINK_JITTER, BOT_THINK_MAX_FRACTION, BOT_THINK_MIN_MS, BOT_THINK_SCALE
 from .maia import pool as maia_pool
 
 ONGOING = "ongoing"
@@ -38,6 +38,7 @@ class GameSession:
     result: str | None = None
     result_reason: str | None = None
     rated: bool = False
+    assisted: bool = False
     white_ms: int = DEFAULT_BASE_MS
     black_ms: int = DEFAULT_BASE_MS
     turn_started_at: float = field(default_factory=time.time)
@@ -173,10 +174,16 @@ class GameSession:
             return None
         board = self.board()
         bot = self.bot
-        target_ms = (
+        bot_color = chess.WHITE if not self.player_is_white else chess.BLACK
+        budget = max(
+            BOT_THINK_MIN_MS,
+            int(self.live_remaining(bot_color) * BOT_THINK_MAX_FRACTION),
+        )
+        target_ms = min(
             bot.think_ms
             * BOT_THINK_SCALE
-            * random.uniform(1 - BOT_THINK_JITTER, 1 + BOT_THINK_JITTER)
+            * random.uniform(1 - BOT_THINK_JITTER, 1 + BOT_THINK_JITTER),
+            budget,
         )
         started = time.time()
         move = maia_pool.get(bot.model).move(
@@ -205,6 +212,7 @@ class GameSession:
             return False
         if self.status != ONGOING:
             return False
+        self.assisted = True
         if self.is_bot_turn():
             self.moves.pop()
         else:
@@ -298,6 +306,8 @@ class GameSession:
             "result": self.result,
             "result_reason": self.result_reason,
             "can_undo": bool(self.moves) and live_status == ONGOING,
+            "rated": self.rated,
+            "assisted": self.assisted,
             "clock": {
                 "base_ms": self.base_ms,
                 "increment_ms": self.increment_ms,
@@ -324,6 +334,7 @@ class GameSession:
             "result": self.result,
             "result_reason": self.result_reason,
             "rated": self.rated,
+            "assisted": self.assisted,
             "white_ms": self.white_ms,
             "black_ms": self.black_ms,
             "turn_started_at": self.turn_started_at,
@@ -346,6 +357,7 @@ class GameSession:
             result=record.get("result"),
             result_reason=record.get("result_reason"),
             rated=record.get("rated", False),
+            assisted=record.get("assisted", False),
             white_ms=record.get("white_ms", record.get("base_ms", DEFAULT_BASE_MS)),
             black_ms=record.get("black_ms", record.get("base_ms", DEFAULT_BASE_MS)),
             turn_started_at=record.get("turn_started_at", time.time()),

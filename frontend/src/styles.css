@@ -1054,3 +1054,24 @@ button.icon {
     grid-template-columns: 1fr;
   }
 }
+
+.practice-note {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 860px) {
+  .muted,
+  .premove-tip,
+  .notice-line,
+  .chat-msg,
+  .movelist,
+  .bot-elo-line,
+  .practice-note {
+    font-size: 0.95rem;
+  }
+}

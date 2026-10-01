@@ -1,0 +1,7 @@
+[Unit]
+Description=HumanChess database back-up
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/i647/humanchess/backend
+ExecStart=/home/i647/humanchess/backend/.venv/bin/python -m app.maintenance backup

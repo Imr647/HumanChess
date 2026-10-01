@@ -9,7 +9,7 @@ WorkingDirectory=/home/i647/humanchess/backend
 Environment=HCHESS_DEVICE=cpu
 Environment=HCHESS_SF_HASH=128
 Environment=HCHESS_SF_THREADS=4
-Environment=HCHESS_REVIEW_DEPTH=12
+Environment=HCHESS_REVIEW_DEPTH=16
 ExecStart=/home/i647/humanchess/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100
 Restart=always
 RestartSec=10

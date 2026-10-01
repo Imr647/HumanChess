@@ -13,8 +13,11 @@ import SetupPanel from "./components/SetupPanel";
 import {
   CLASS_LABELS,
   CLASS_SYMBOLS,
+  applyFreeMove,
   capturedUpTo,
   fenAtIndex,
+  flipTurn,
+  hasLegalMoves,
   resultText,
   statusLabel,
   uciAtPly,
@@ -28,6 +31,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [showCoords, setShowCoords] = useState(true);
   const [muted, setMuted] = useState(false);
+  const [free, setFree] = useState<{ base: string; fen: string; moves: string[] } | null>(null);
   const prevRef = useRef<{ moves: number; status: string }>({ moves: 0, status: "none" });
 
   useEffect(() => {
@@ -37,6 +41,7 @@ export default function App() {
   const gameId = g.game?.id ?? null;
   useEffect(() => {
     setPreviewPly(null);
+    setFree(null);
   }, [gameId, g.review]);
 
   const totalPositions = g.game?.moves.length ?? 0;
@@ -176,8 +181,10 @@ export default function App() {
       : "white"
     : game.player_color;
   const captured = capturedUpTo(game, previewing ? previewPly ?? 0 : game.moves.length);
-  const mode: "move" | "premove" | "locked" = previewing
-    ? "locked"
+  const mode: "move" | "premove" | "locked" = free
+    ? "move"
+    : previewing
+      ? "locked"
     : !ongoing
       ? "locked"
       : game.player_turn
@@ -203,6 +210,45 @@ export default function App() {
             return `${move.number}${move.color === "white" ? "." : "..."} ${move.san}`;
           })();
 
+  const freeDisplayFen = free ? flipTurn(free.fen) : null;
+
+  const startFree = () => {
+    let plek = previewing ? previewPly ?? 0 : game.moves.length;
+    let fen = fenAtIndex(game, plek);
+    while (plek > 0 && !hasLegalMoves(fen)) {
+      plek -= 1;
+      fen = fenAtIndex(game, plek);
+    }
+    setFree({ base: fen, fen, moves: [] });
+    void g.analyseFen(fen);
+  };
+
+  const replayFree = (base: string, moves: string[]) => {
+    let fen = base;
+    for (const uci of moves) {
+      const next = applyFreeMove(fen, uci);
+      if (!next) break;
+      fen = next.fen;
+    }
+    return fen;
+  };
+
+  const playFree = (uci: string) => {
+    if (!free) return;
+    const next = applyFreeMove(free.fen, uci);
+    if (!next) return;
+    setFree({ base: free.base, fen: next.fen, moves: [...free.moves, uci] });
+    void g.analyseFen(next.fen);
+  };
+
+  const undoFree = () => {
+    if (!free || free.moves.length === 0) return;
+    const moves = free.moves.slice(0, -1);
+    const fen = replayFree(free.base, moves);
+    setFree({ base: free.base, fen, moves });
+    void g.analyseFen(fen);
+  };
+
   return (
     <div className="app game-layout">
       {errorBanner}
@@ -219,11 +265,25 @@ export default function App() {
         </div>
         <div className={`status-pill ${ongoing ? "" : "done"}`}>{statusMessage}</div>
       </header>
+      {game.assisted && (
+        <div className="practice-note">Oefenpartij — telt niet mee voor je rating</div>
+      )}
 
       <main className="game-main">
         <div className="board-column">
           <div className="board-toolbar">
             <button onClick={() => setFlipped((v) => !v)}>Draai bord</button>
+            {!ongoing && !free && <button onClick={startFree}>Vrij analyseren</button>}
+            {free && (
+              <button onClick={undoFree} disabled={free.moves.length === 0}>
+                Zet terug
+              </button>
+            )}
+            {free && (
+              <button className="ghost" onClick={() => setFree(null)}>
+                Terug naar partij
+              </button>
+            )}
             <button className={showCoords ? "" : "ghost"} onClick={() => setShowCoords((v) => !v)}>
               Coördinaten {showCoords ? "aan" : "uit"}
             </button>
@@ -273,14 +333,23 @@ export default function App() {
           <Board
             game={game}
             mode={mode}
-            premove={g.premove}
-            onMove={(uci) => void g.playerMove(uci)}
+            premove={free ? null : g.premove}
+            onMove={free ? playFree : (uci) => void g.playerMove(uci)}
             onPremove={g.queuePremove}
             onClearPremove={g.clearPremove}
             arrows={arrows}
-            fenOverride={previewing ? fenAtIndex(game, previewPly ?? 0) : null}
-            lastMoveOverride={previewing ? uciAtPly(game, (previewPly ?? 0) - 1) : null}
-            badges={badges}
+            freeMode={!!free}
+            fenOverride={
+              free ? freeDisplayFen : previewing ? fenAtIndex(game, previewPly ?? 0) : null
+            }
+            lastMoveOverride={
+              free
+                ? free.moves[free.moves.length - 1] ?? null
+                : previewing
+                  ? uciAtPly(game, (previewPly ?? 0) - 1)
+                  : null
+            }
+            badges={free ? undefined : badges}
             orientation={orientation}
             showCoords={showCoords}
           />
@@ -303,6 +372,11 @@ export default function App() {
             </div>
           )}
           {g.busy && !previewing && <div className="thinking">Even denken...</div>}
+          {free && (
+            <p className="muted premove-tip">
+              Vrij analyseren: je mag voor beide partijen zetten; Stockfish beoordeelt de stelling.
+            </p>
+          )}
           {mode === "premove" && !g.premove && (
             <p className="muted premove-tip">
               Je kunt alvast je volgende zet aangeven (voorzet).
@@ -379,7 +453,7 @@ export default function App() {
             </button>
           )}
 
-          {g.stockfishAvailable && !g.review && (
+          {g.stockfishAvailable && (!g.review || free) && (
             <EvalBar result={g.evalResult} loading={g.busy} />
           )}
 

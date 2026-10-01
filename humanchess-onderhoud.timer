@@ -1,0 +1,9 @@
+[Unit]
+Description=Elk uur verlaten HumanChess-partijen afbreken
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

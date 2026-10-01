@@ -27,8 +27,13 @@ mkdir -p "$HOME/.config/systemd/user"
 for unit in humanchess caddy; do
     ln -sf "$ROOT/$unit.service" "$HOME/.config/systemd/user/$unit.service"
 done
+for timer in humanchess-backup.timer humanchess-onderhoud.timer; do
+    ln -sf "$ROOT/$timer" "$HOME/.config/systemd/user/$timer"
+    ln -sf "$ROOT/${timer%.timer}.service" "$HOME/.config/systemd/user/${timer%.timer}.service"
+done
 systemctl --user daemon-reload
 systemctl --user enable --now humanchess caddy
+systemctl --user enable --now humanchess-backup.timer humanchess-onderhoud.timer
 systemctl --user restart humanchess
 sleep 1
 systemctl --user restart caddy

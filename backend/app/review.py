@@ -5,6 +5,7 @@ import math
 import chess
 import chess.polyglot
 
+from .config import REVIEW_DEPTH
 from .game import GameSession
 from .stockfish import stockfish
 
@@ -202,6 +203,15 @@ def _empty_summary() -> dict:
         "miss": 0,
         "blunder": 0,
     }
+
+
+def review_depth(plies: int, base: int | None = None) -> int:
+    depth = base or REVIEW_DEPTH
+    if plies <= 80:
+        return depth
+    if plies <= 140:
+        return max(10, depth - 2)
+    return max(8, depth - 4)
 
 
 def review_game(session: GameSession, depth: int = 12) -> dict:

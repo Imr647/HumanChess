@@ -251,8 +251,26 @@ export function useGame() {
     if (!id) return;
     try {
       const text = await api.pgn(id);
-      await navigator.clipboard.writeText(text);
-      setHint({ move: null, san: "PGN gekopieerd naar klembord" });
+      const naam = `humanchess-${id.slice(0, 8)}.pgn`;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          setHint({ move: null, san: "PGN gekopieerd naar klembord" });
+          return;
+        } catch {
+          /* kopiëren geweigerd: dan maar als bestand */
+        }
+      }
+      const blob = new Blob([text], { type: "application/x-chess-pgn" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = naam;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setHint({ move: null, san: `PGN bewaard als ${naam}` });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -264,6 +282,18 @@ export function useGame() {
       return apply(api.importPgn(pgn, botId, playerColor));
     },
     [apply, clearPremove],
+  );
+
+  const analyseFen = useCallback(
+    async (fen: string) => {
+      if (!stockfishAvailable) return;
+      try {
+        setEvalResult(await api.analyse(fen, 3));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [stockfishAvailable],
   );
 
   const refresh = useCallback(() => {
@@ -311,6 +341,7 @@ export function useGame() {
     review,
     reviewLoading,
     runReview,
+    analyseFen,
     clearReview,
     startGame,
     rematch,

@@ -58,6 +58,11 @@ export const api = {
     ),
   evaluate: (id: string, multipv = 3) =>
     request<EvalResult>(`/games/${id}/eval?multipv=${multipv}`),
+  analyse: (fen: string, multipv = 3, depth = 0) =>
+    request<EvalResult>("/analyse", {
+      method: "POST",
+      body: JSON.stringify({ fen, multipv, depth }),
+    }),
   review: (id: string, depth = 0) =>
     request<ReviewResult>(`/games/${id}/review?depth=${depth}`),
   pgn: async (id: string): Promise<string> => {

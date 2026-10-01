@@ -112,6 +112,8 @@ export function statusLabel(status: GameStatus): string {
       return "Opgegeven";
     case "timeout":
       return "Tijd verstreken";
+    case "aborted":
+      return "Afgebroken";
   }
 }
 
@@ -138,7 +140,9 @@ export function formatClock(ms: number): string {
 export function evalToText(line: EvalLine | undefined): string {
   if (!line) return "—";
   if (line.score.type === "mate") {
-    return `#${line.score.value ?? 0}`;
+    const value = line.score.value ?? 0;
+    if (value === 0) return "mat";
+    return value > 0 ? `#${value}` : `#-${Math.abs(value)}`;
   }
   const cp = line.score.value ?? 0;
   const pawns = cp / 100;
@@ -158,4 +162,35 @@ export function evalToWhiteProbability(line: EvalLine | undefined): number {
 export function lastMoveSquares(uci: string | null): string[] {
   if (!uci || uci.length < 4) return [];
   return [uci.slice(0, 2), uci.slice(2, 4)];
+}
+
+export function hasLegalMoves(fen: string): boolean {
+  try {
+    return new Chess(fen).moves().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function flipTurn(fen: string): string {
+  const parts = fen.split(" ");
+  if (parts.length < 2) return fen;
+  parts[1] = parts[1] === "w" ? "b" : "w";
+  parts[3] = "-";
+  return parts.join(" ");
+}
+
+export function applyFreeMove(fen: string, uci: string): { fen: string; san: string } | null {
+  try {
+    const chess = new Chess(flipTurn(fen));
+    const move = chess.move({
+      from: uci.slice(0, 2),
+      to: uci.slice(2, 4),
+      promotion: uci.slice(4, 5) || undefined,
+    });
+    if (!move) return null;
+    return { fen: flipTurn(chess.fen()), san: move.san };
+  } catch {
+    return null;
+  }
 }

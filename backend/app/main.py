@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import threading
+
+import chess
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -10,11 +12,11 @@ from fastapi.staticfiles import StaticFiles
 
 from . import maia, stockfish
 from .bots import get_bot, list_bots
-from .config import MAIA_DEVICE, REVIEW_DEPTH, ROOT
+from .config import MAIA_DEVICE, ROOT, STOCKFISH_DEPTH
 from .db import store
 from .game import GameSession, game_from_pgn, new_game
-from .review import review_game
-from .schemas import ImportRequest, MoveRequest, NewGameRequest
+from .review import review_depth, review_game
+from .schemas import AnalyseRequest, ImportRequest, MoveRequest, NewGameRequest
 
 
 @asynccontextmanager
@@ -39,12 +41,19 @@ _lock = threading.Lock()
 
 
 def _get_session(game_id: str) -> GameSession:
+    """Geef de partij uit het geheugen, tenzij de opgeslagen versie nieuwer is.
+
+    Het onderhoud (verlaten partijen afbreken, terugzetten uit een back-up) schrijft
+    rechtstreeks in de database; zonder deze vergelijking blijft de service de oude
+    versie uit het geheugen serveren.
+    """
     with _lock:
-        if game_id in _sessions:
-            return _sessions[game_id]
+        cached = _sessions.get(game_id)
     record = store.get(game_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Partij niet gevonden")
+    if cached is not None and cached.updated_at >= record.get("updated_at", 0):
+        return cached
     session = GameSession.from_record(record)
     with _lock:
         _sessions[game_id] = session
@@ -56,6 +65,9 @@ ELO_K = 24
 
 def _settle(session: GameSession) -> None:
     if session.status == "ongoing" or session.rated:
+        return
+    if session.assisted:
+        session.rated = True
         return
     profile = store.get_profile()
     result = session.result
@@ -97,6 +109,8 @@ def _summary(record: dict) -> dict:
         "result": session.result,
         "result_reason": session.result_reason,
         "move_count": len(session.moves),
+        "rated": session.rated,
+        "assisted": session.assisted,
         "created_at": session.created_at,
         "updated_at": session.updated_at,
     }
@@ -227,6 +241,8 @@ def hint(game_id: str) -> dict:
     if not stockfish.stockfish.available():
         raise HTTPException(status_code=503, detail="Stockfish niet beschikbaar")
     analysis = stockfish.stockfish.analyse(session.board(), multipv=1)
+    session.assisted = True
+    _save(session)
     return {"best_move": analysis["best_move"], "best_san": analysis["best_san"]}
 
 
@@ -235,7 +251,20 @@ def evaluate(game_id: str, multipv: int = 3) -> dict:
     session = _get_session(game_id)
     if not stockfish.stockfish.available():
         raise HTTPException(status_code=503, detail="Stockfish niet beschikbaar")
+    session.assisted = True
+    _save(session)
     return stockfish.stockfish.analyse(session.board(), multipv=multipv)
+
+
+@app.post("/api/analyse")
+def analyse_position(req: AnalyseRequest) -> dict:
+    if not stockfish.stockfish.available():
+        raise HTTPException(status_code=503, detail="Stockfish niet beschikbaar")
+    try:
+        board = chess.Board(req.fen)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ongeldige stelling") from None
+    return stockfish.stockfish.analyse(board, multipv=req.multipv, depth=req.depth or STOCKFISH_DEPTH)
 
 
 @app.get("/api/games/{game_id}/review")
@@ -245,7 +274,7 @@ def review(game_id: str, depth: int = 0) -> dict:
         raise HTTPException(status_code=400, detail="Geen zetten om te beoordelen")
     if not stockfish.stockfish.available():
         raise HTTPException(status_code=503, detail="Stockfish niet beschikbaar")
-    use_depth = depth or REVIEW_DEPTH
+    use_depth = depth or review_depth(len(session.moves))
     key = (game_id, len(session.moves), use_depth)
     with _lock:
         cached = _reviews.get(key)

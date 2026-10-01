@@ -40,7 +40,8 @@ export type GameStatus =
   | "stalemate"
   | "draw"
   | "resigned"
-  | "timeout";
+  | "timeout"
+  | "aborted";
 
 export type MoveClass =
   | "brilliant"
@@ -124,6 +125,8 @@ export interface GameSnapshot {
   result: string | null;
   result_reason: string | null;
   can_undo: boolean;
+  rated: boolean;
+  assisted: boolean;
   clock: GameClock;
   chat: ChatMessage[];
   created_at: number;
@@ -140,6 +143,8 @@ export interface GameSummary {
   result: string | null;
   result_reason: string | null;
   move_count: number;
+  rated: boolean;
+  assisted: boolean;
   created_at: number;
   updated_at: number;
 }

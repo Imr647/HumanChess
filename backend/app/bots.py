@@ -86,6 +86,7 @@ BOTS: list[BotPersona] = [
         top_p=0.97,
         think_ms=1300,
         color="#c084fc",
+        model="maia3-23m",
     ),
     BotPersona(
         id="noor",
@@ -96,6 +97,7 @@ BOTS: list[BotPersona] = [
         top_p=0.97,
         think_ms=1200,
         color="#e879f9",
+        model="maia3-23m",
     ),
     BotPersona(
         id="yara",
@@ -106,6 +108,7 @@ BOTS: list[BotPersona] = [
         top_p=0.98,
         think_ms=1100,
         color="#f472b6",
+        model="maia3-23m",
     ),
     BotPersona(
         id="daan",
@@ -116,6 +119,7 @@ BOTS: list[BotPersona] = [
         top_p=0.98,
         think_ms=1050,
         color="#fb7185",
+        model="maia3-23m",
     ),
     BotPersona(
         id="viktor",
@@ -126,16 +130,18 @@ BOTS: list[BotPersona] = [
         top_p=0.99,
         think_ms=1000,
         color="#f97316",
+        model="maia3-23m",
     ),
     BotPersona(
         id="elin",
         name="Elin",
         elo=2350,
-        description="Meesteres. Nauwelijks fouten, sterke tactics.",
+        description="Meesteres. Nauwelijks fouten, sterke tactiek.",
         temperature=0.55,
         top_p=0.99,
         think_ms=950,
         color="#facc15",
+        model="maia3-23m",
     ),
     BotPersona(
         id="max",
@@ -146,6 +152,7 @@ BOTS: list[BotPersona] = [
         top_p=1.0,
         think_ms=900,
         color="#22c55e",
+        model="maia3-23m",
     ),
 ]
 
