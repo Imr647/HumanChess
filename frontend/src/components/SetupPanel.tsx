@@ -1,12 +1,13 @@
 import { useState } from "react";
 
 import { statusLabel } from "../lib/chessUtils";
-import type { Bot, GameSummary, NewGameConfig } from "../lib/types";
+import type { Bot, GameSummary, NewGameConfig, Profile } from "../lib/types";
 import Avatar from "./Avatar";
 
 interface SetupPanelProps {
   bots: Bot[];
   history: GameSummary[];
+  profile: Profile | null;
   busy: boolean;
   stockfishAvailable: boolean;
   onStart: (config: NewGameConfig) => void;
@@ -16,16 +17,25 @@ interface SetupPanelProps {
 }
 
 const PRESETS: { label: string; minutes: number; increment: number }[] = [
-  { label: "3 + 2", minutes: 3, increment: 2 },
-  { label: "5 + 0", minutes: 5, increment: 0 },
-  { label: "10 + 0", minutes: 10, increment: 0 },
-  { label: "10 + 5", minutes: 10, increment: 5 },
-  { label: "15 + 10", minutes: 15, increment: 10 },
+  { label: "1 + 0 (bullet)", minutes: 1, increment: 0 },
+  { label: "2 + 1 (bullet)", minutes: 2, increment: 1 },
+  { label: "3 + 0 (blitz)", minutes: 3, increment: 0 },
+  { label: "3 + 2 (blitz)", minutes: 3, increment: 2 },
+  { label: "5 + 0 (blitz)", minutes: 5, increment: 0 },
+  { label: "5 + 3 (blitz)", minutes: 5, increment: 3 },
+  { label: "10 + 0 (rapid)", minutes: 10, increment: 0 },
+  { label: "10 + 5 (rapid)", minutes: 10, increment: 5 },
+  { label: "15 + 10 (rapid)", minutes: 15, increment: 10 },
+  { label: "30 + 0 (klassiek)", minutes: 30, increment: 0 },
+  { label: "Aangepast...", minutes: -1, increment: -1 },
 ];
+
+const CUSTOM_INDEX = PRESETS.length - 1;
 
 export default function SetupPanel({
   bots,
   history,
+  profile,
   busy,
   stockfishAvailable,
   onStart,
@@ -33,19 +43,23 @@ export default function SetupPanel({
   onImport,
   onDelete,
 }: SetupPanelProps) {
-  const [botId, setBotId] = useState(bots[1]?.id ?? bots[0]?.id ?? "mo");
+  const [botId, setBotId] = useState(bots[4]?.id ?? bots[0]?.id ?? "mo");
   const [color, setColor] = useState<"white" | "black">("white");
-  const [presetIndex, setPresetIndex] = useState(2);
+  const [presetIndex, setPresetIndex] = useState(6);
+  const [customMinutes, setCustomMinutes] = useState(10);
+  const [customIncrement, setCustomIncrement] = useState(0);
   const [pgn, setPgn] = useState("");
   const [tab, setTab] = useState<"new" | "import" | "history">("new");
+
+  const isCustom = presetIndex === CUSTOM_INDEX;
 
   const start = () => {
     const preset = PRESETS[presetIndex];
     onStart({
       bot_id: botId,
       player_color: color,
-      base_minutes: preset.minutes,
-      increment_seconds: preset.increment,
+      base_minutes: isCustom ? Math.max(0.1, customMinutes) : preset.minutes,
+      increment_seconds: isCustom ? Math.max(0, customIncrement) : preset.increment,
     });
   };
 
@@ -54,6 +68,15 @@ export default function SetupPanel({
       <header className="setup-header">
         <h1>HumanChess</h1>
         <p>Schaken tegen menselijke bots, getraind op miljoenen echte partijen.</p>
+        {profile && (
+          <p className="setup-rating">
+            Jouw rating: <strong>{profile.rating}</strong>
+            <span className="muted">
+              {" "}
+              · {profile.wins}W / {profile.losses}L / {profile.draws}R ({profile.games} partijen)
+            </span>
+          </p>
+        )}
         {!stockfishAvailable && (
           <p className="warn">Stockfish niet gevonden: hints en analyse zijn uit.</p>
         )}
@@ -106,11 +129,35 @@ export default function SetupPanel({
               <select value={presetIndex} onChange={(e) => setPresetIndex(Number(e.target.value))}>
                 {PRESETS.map((preset, index) => (
                   <option key={preset.label} value={index}>
-                    {preset.label} min
+                    {preset.label}
                   </option>
                 ))}
               </select>
             </label>
+            {isCustom && (
+              <>
+                <label>
+                  Minuten
+                  <input
+                    type="number"
+                    min={0.1}
+                    step={1}
+                    value={customMinutes}
+                    onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Increment (sec)
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={customIncrement}
+                    onChange={(e) => setCustomIncrement(Number(e.target.value))}
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           <button className="primary big" onClick={start} disabled={busy || bots.length === 0}>

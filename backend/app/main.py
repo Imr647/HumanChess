@@ -50,7 +50,35 @@ def _get_session(game_id: str) -> GameSession:
     return session
 
 
+ELO_K = 24
+
+
+def _settle(session: GameSession) -> None:
+    if session.status == "ongoing" or session.rated:
+        return
+    profile = store.get_profile()
+    result = session.result
+    if result == "1-0":
+        score = 1.0 if session.player_is_white else 0.0
+    elif result == "0-1":
+        score = 0.0 if session.player_is_white else 1.0
+    else:
+        score = 0.5
+    expected = 1.0 / (1.0 + 10 ** ((session.bot.elo - profile["rating"]) / 400.0))
+    profile["rating"] = int(round(profile["rating"] + ELO_K * (score - expected)))
+    profile["games"] += 1
+    if score == 1.0:
+        profile["wins"] += 1
+    elif score == 0.0:
+        profile["losses"] += 1
+    else:
+        profile["draws"] += 1
+    store.set_profile(profile)
+    session.rated = True
+
+
 def _save(session: GameSession) -> None:
+    _settle(session)
     with _lock:
         _sessions[session.id] = session
     store.save(session.to_record())
@@ -111,9 +139,20 @@ def create_game(req: NewGameRequest) -> dict:
     return session.snapshot()
 
 
+@app.get("/api/profile")
+def profile() -> dict:
+    return store.get_profile()
+
+
 @app.get("/api/games/{game_id}")
 def get_game(game_id: str) -> dict:
-    return _get_session(game_id).snapshot()
+    session = _get_session(game_id)
+    snapshot = session.snapshot()
+    was_rated = session.rated
+    _settle(session)
+    if session.rated and not was_rated:
+        store.save(session.to_record())
+    return snapshot
 
 
 @app.post("/api/games/{game_id}/move")

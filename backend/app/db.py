@@ -14,7 +14,19 @@ CREATE TABLE IF NOT EXISTS games (
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
+
+DEFAULT_PROFILE = {
+    "rating": 1200,
+    "wins": 0,
+    "losses": 0,
+    "draws": 0,
+    "games": 0,
+}
 
 
 class GameStore:
@@ -56,6 +68,25 @@ class GameStore:
     def delete(self, game_id: str) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM games WHERE id = ?", (game_id,))
+            self._conn.commit()
+
+    def get_profile(self) -> dict:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM meta WHERE key = 'profile'"
+            ).fetchone()
+        profile = dict(DEFAULT_PROFILE)
+        if row:
+            profile.update(json.loads(row["value"]))
+        return profile
+
+    def set_profile(self, profile: dict) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO meta (key, value) VALUES ('profile', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (json.dumps(profile),),
+            )
             self._conn.commit()
 
     def close(self) -> None:

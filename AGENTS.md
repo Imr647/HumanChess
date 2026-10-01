@@ -27,7 +27,10 @@ make test                 # backend tests
 - Backend: FastAPI-routers in `app/main.py`, logica gescheiden in `game.py`,
   engine-wrappers in `maia.py` / `stockfish.py`, persona's in `bots.py`.
 - Frontend: React function components + hooks, API-calls via `src/lib/api.ts`.
-- Bots zijn datagedreven in `backend/app/bots.py` (naam, Elo, temperature, top-p).
+- Bots zijn datagedreven in `backend/app/bots.py` (naam, Elo, temperature, top-p,
+  kleur, toon). Praatzinnen staan in `backend/app/chat.py`.
+- De spelerrating staat in de `meta`-tabel (`data/humanchess.db`), bijgewerkt via
+  `_settle()` in `backend/app/main.py` zodra een partij klaar is.
 
 ## Belangrijk
 

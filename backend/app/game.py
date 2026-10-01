@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import chess
 import chess.pgn
 
+from . import chat
 from .bots import BotPersona, get_bot
 from .config import BOT_THINK_JITTER, BOT_THINK_SCALE
 from .maia import pool as maia_pool
@@ -36,11 +37,13 @@ class GameSession:
     status: str = ONGOING
     result: str | None = None
     result_reason: str | None = None
+    rated: bool = False
     white_ms: int = DEFAULT_BASE_MS
     black_ms: int = DEFAULT_BASE_MS
     turn_started_at: float = field(default_factory=time.time)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    chat: list[dict] = field(default_factory=list)
 
     @property
     def bot(self) -> BotPersona:
@@ -89,6 +92,13 @@ class GameSession:
         self._set_remaining(mover, remaining + self.increment_ms)
         return True
 
+    def _announce_result(self) -> None:
+        if self.result == "1/2-1/2":
+            self._bot_says("draw")
+            return
+        white_won = self.result == "1-0"
+        self._bot_says("win" if white_won != self.player_is_white else "loss")
+
     def _record_outcome(self) -> None:
         board = self.board()
         if not board.is_game_over():
@@ -107,10 +117,26 @@ class GameSession:
             self.status = DRAW
             self.result_reason = outcome.termination.name.lower()
 
+    def _bot_says(self, event: str, chance: float = 1.0) -> None:
+        if random.random() > chance:
+            return
+        self.chat.append(
+            {
+                "color": "bot",
+                "event": event,
+                "text": chat.line(self.bot.tone, event),
+                "ply": len(self.moves),
+            }
+        )
+
+    def greet(self) -> None:
+        self._bot_says("greeting")
+
     def _finish_timeout(self, color: chess.Color) -> None:
         self.status = TIMEOUT
         self.result_reason = "timeout"
         self.result = "0-1" if color == chess.WHITE else "1-0"
+        self._bot_says("win" if color == self.player_color_bool else "loss")
 
     def push_move(self, move: chess.Move) -> None:
         board = self.board()
@@ -124,6 +150,8 @@ class GameSession:
         self.turn_started_at = time.time()
         self.updated_at = time.time()
         self._record_outcome()
+        if self.status != ONGOING:
+            self._announce_result()
 
     def apply_player_move(self, uci: str) -> chess.Move:
         if self.status != ONGOING:
@@ -160,10 +188,16 @@ class GameSession:
         )
         if move not in board.legal_moves:
             move = next(iter(board.legal_moves))
+        is_capture = board.is_capture(move)
         remaining_ms = target_ms - (time.time() - started) * 1000
         if remaining_ms > 0:
             time.sleep(remaining_ms / 1000)
         self.push_move(move)
+        if self.status == ONGOING:
+            if self.board().is_check():
+                self._bot_says("check")
+            elif is_capture:
+                self._bot_says("capture", 0.4)
         return move
 
     def undo(self) -> bool:
@@ -188,6 +222,7 @@ class GameSession:
         self.result_reason = "resignation"
         self.result = "0-1" if self.player_is_white else "1-0"
         self.updated_at = time.time()
+        self._bot_says("win")
 
     def agree_draw(self) -> None:
         if self.status != ONGOING:
@@ -196,6 +231,7 @@ class GameSession:
         self.result_reason = "agreement"
         self.result = "1/2-1/2"
         self.updated_at = time.time()
+        self._bot_says("draw")
 
     def _move_list(self) -> list[dict]:
         board = chess.Board(self.initial_fen) if self.initial_fen else chess.Board()
@@ -270,6 +306,7 @@ class GameSession:
                 "running": live_status == ONGOING,
                 "server_time": time.time(),
             },
+            "chat": self.chat,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -286,11 +323,13 @@ class GameSession:
             "status": self.status,
             "result": self.result,
             "result_reason": self.result_reason,
+            "rated": self.rated,
             "white_ms": self.white_ms,
             "black_ms": self.black_ms,
             "turn_started_at": self.turn_started_at,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "chat": self.chat,
         }
 
     @classmethod
@@ -306,11 +345,13 @@ class GameSession:
             status=record.get("status", ONGOING),
             result=record.get("result"),
             result_reason=record.get("result_reason"),
+            rated=record.get("rated", False),
             white_ms=record.get("white_ms", record.get("base_ms", DEFAULT_BASE_MS)),
             black_ms=record.get("black_ms", record.get("base_ms", DEFAULT_BASE_MS)),
             turn_started_at=record.get("turn_started_at", time.time()),
             created_at=record.get("created_at", time.time()),
             updated_at=record.get("updated_at", time.time()),
+            chat=list(record.get("chat", [])),
         )
 
 
@@ -320,7 +361,7 @@ def new_game(
     base_minutes: float,
     increment_seconds: float,
 ) -> GameSession:
-    return GameSession(
+    session = GameSession(
         id=uuid.uuid4().hex,
         bot_id=bot_id,
         player_color=player_color,
@@ -329,6 +370,8 @@ def new_game(
         white_ms=int(base_minutes * 60 * 1000),
         black_ms=int(base_minutes * 60 * 1000),
     )
+    session.greet()
+    return session
 
 
 def game_from_pgn(pgn_text: str, bot_id: str, player_color: str) -> GameSession:

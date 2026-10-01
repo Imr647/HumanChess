@@ -119,6 +119,40 @@ button.ghost {
   color: var(--muted);
 }
 
+.setup-rating {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.setup-rating strong {
+  color: var(--accent);
+  font-size: 1.15rem;
+}
+
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.chat-msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.chat-bubble {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
@@ -201,13 +235,18 @@ button.ghost {
 }
 
 select,
-textarea {
+textarea,
+input[type="number"] {
   font: inherit;
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+input[type="number"] {
+  width: 110px;
 }
 
 textarea {

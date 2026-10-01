@@ -17,6 +17,14 @@ class BotPersona:
     color: str = "#4f9cf9"
     model: str = DEFAULT_MODEL
 
+    @property
+    def tone(self) -> str:
+        if self.elo < 1300:
+            return "vrolijk"
+        if self.elo < 1900:
+            return "rustig"
+        return "serieus"
+
 
 BOTS: list[BotPersona] = [
     BotPersona(

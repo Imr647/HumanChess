@@ -8,8 +8,9 @@ niveau op die van mensen lijken. Voor analyse en hints wordt
 
 ## Features
 
-- Speel tegen 12 benoemde bots (Elo 700–2500) met avatar en karakter
-- Kies je kleur en tijdsinstelling
+- Speel tegen 12 benoemde bots (Elo 700–2500) met avatar, karakter en praatjes
+- Kies je kleur en tijdsinstelling (bullet/blitz/rapid/klassiek of aangepast)
+- Persoonlijke rating die meebeweegt als je wint/verliest tegen bots
 - Zettenlijst, undo, opgeven, remise aanbieden (bot kan weigeren)
 - Voorzetten (premove): plan je volgende zet terwijl de bot nadenkt
 - Geslagen stukken en materiaalvoordeel, bord draaien, coördinaten

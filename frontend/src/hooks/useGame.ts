@@ -9,6 +9,7 @@ import type {
   GameSummary,
   NewGameConfig,
   Premove,
+  Profile,
   ReviewResult,
 } from "../lib/types";
 
@@ -39,6 +40,7 @@ export function useGame() {
   const [notice, setNotice] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewResult | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const gameIdRef = useRef<string | null>(null);
   const premoveRef = useRef<Premove | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
@@ -63,6 +65,18 @@ export function useGame() {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      setProfile(await api.profile());
+    } catch {
+      /* stil */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   const clearPremove = useCallback(() => {
     premoveRef.current = null;
@@ -93,6 +107,7 @@ export function useGame() {
       if (snap.status !== "ongoing") {
         premoveRef.current = null;
         setPremove(null);
+        void loadProfile();
       }
       return snap;
     } catch (e) {
@@ -289,6 +304,7 @@ export function useGame() {
     stockfishAvailable,
     premove,
     notice,
+    profile,
     review,
     reviewLoading,
     runReview,

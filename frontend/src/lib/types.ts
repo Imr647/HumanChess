@@ -93,6 +93,21 @@ export interface ReviewResult {
   initial_fen: string | null;
 }
 
+export interface ChatMessage {
+  color: string;
+  event: string;
+  text: string;
+  ply: number;
+}
+
+export interface Profile {
+  rating: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  games: number;
+}
+
 export interface GameSnapshot {
   id: string;
   initial_fen: string | null;
@@ -110,6 +125,7 @@ export interface GameSnapshot {
   result_reason: string | null;
   can_undo: boolean;
   clock: GameClock;
+  chat: ChatMessage[];
   created_at: number;
   updated_at: number;
 }

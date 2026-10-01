@@ -5,6 +5,7 @@ import type {
   GameSnapshot,
   GameSummary,
   NewGameConfig,
+  Profile,
   ReviewResult,
 } from "./types";
 
@@ -32,6 +33,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string; maia_device: string; stockfish_available: boolean }>("/health"),
   bots: () => request<Bot[]>("/bots"),
+  profile: () => request<Profile>("/profile"),
   games: () => request<GameSummary[]>("/games"),
   createGame: (config: NewGameConfig) =>
     request<GameSnapshot>("/games", { method: "POST", body: JSON.stringify(config) }),

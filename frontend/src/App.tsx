@@ -3,6 +3,7 @@ import type { Arrow } from "react-chessboard";
 
 import Avatar from "./components/Avatar";
 import Board from "./components/Board";
+import ChatFeed from "./components/ChatFeed";
 import Clock from "./components/Clock";
 import EvalBar from "./components/EvalBar";
 import GameControls from "./components/GameControls";
@@ -155,6 +156,7 @@ export default function App() {
         <SetupPanel
           bots={g.bots}
           history={g.history}
+          profile={g.profile}
           busy={g.busy}
           stockfishAvailable={g.stockfishAvailable}
           onStart={(config) => void g.startGame(config)}
@@ -210,7 +212,10 @@ export default function App() {
           <span className="vs">{game.bot.name} ({game.bot.elo})</span>
           <span className="vs-sep">vs</span>
           <Avatar name="Jij" color="#475569" size={34} />
-          <span className="vs">Jij ({game.player_color === "white" ? "wit" : "zwart"})</span>
+          <span className="vs">
+            Jij ({game.player_color === "white" ? "wit" : "zwart"})
+            {g.profile ? ` · ${g.profile.rating}` : ""}
+          </span>
         </div>
         <div className={`status-pill ${ongoing ? "" : "done"}`}>{statusMessage}</div>
       </header>
@@ -317,6 +322,8 @@ export default function App() {
             </div>
             <p className="muted">{game.bot.description}</p>
           </div>
+
+          <ChatFeed messages={game.chat} botName={game.bot.name} botColor={game.bot.color} />
 
           <Clock game={game} captured={captured} onTimeout={g.refresh} />
 
