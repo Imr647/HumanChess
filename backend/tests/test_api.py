@@ -101,6 +101,7 @@ def test_review():
         assert data["summary"]["white"]["accuracy"] > 0
         assert data["moves"][0]["comment"]
         assert data["moves"][0]["classification"] in {
+            "great",
             "best",
             "excellent",
             "good",

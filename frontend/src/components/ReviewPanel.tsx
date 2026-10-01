@@ -1,4 +1,11 @@
-import { CLASS_LABELS, CLASS_SYMBOLS } from "../lib/chessUtils";
+import { useState } from "react";
+
+import {
+  CLASS_DESCRIPTIONS,
+  CLASS_LABELS,
+  CLASS_ORDER,
+  CLASS_SYMBOLS,
+} from "../lib/chessUtils";
 import type { MoveClass, ReviewResult, ReviewSummary } from "../lib/types";
 
 interface ReviewPanelProps {
@@ -7,14 +14,7 @@ interface ReviewPanelProps {
   onSelect: (ply: number) => void;
 }
 
-const CLASS_ORDER: MoveClass[] = [
-  "blunder",
-  "mistake",
-  "inaccuracy",
-  "good",
-  "excellent",
-  "best",
-];
+const CHIP_ORDER: MoveClass[] = [...CLASS_ORDER].reverse();
 
 function SummaryColumn({ title, summary }: { title: string; summary: ReviewSummary }) {
   return (
@@ -24,7 +24,7 @@ function SummaryColumn({ title, summary }: { title: string; summary: ReviewSumma
         <span className="muted">{title}</span>
       </div>
       <div className="review-chips">
-        {CLASS_ORDER.map((cls) =>
+        {CHIP_ORDER.map((cls) =>
           summary[cls] > 0 ? (
             <span key={cls} className={`chip ${cls}`} title={CLASS_LABELS[cls]}>
               {CLASS_SYMBOLS[cls]} {summary[cls]}
@@ -32,6 +32,30 @@ function SummaryColumn({ title, summary }: { title: string; summary: ReviewSumma
           ) : null,
         )}
       </div>
+    </div>
+  );
+}
+
+function Legend() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="legend">
+      <button className="legend-toggle" onClick={() => setOpen((v) => !v)}>
+        Legenda {open ? "▾" : "▸"}
+      </button>
+      {open && (
+        <div className="legend-list">
+          {CLASS_ORDER.map((cls) => (
+            <div className="legend-row" key={cls}>
+              <span className={`legend-badge ${cls}`}>{CLASS_SYMBOLS[cls]}</span>
+              <div className="legend-text">
+                <span className="legend-label">{CLASS_LABELS[cls]}</span>
+                <span className="muted">{CLASS_DESCRIPTIONS[cls]}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -89,8 +113,11 @@ function EvalGraph({
 }
 
 export default function ReviewPanel({ review, selectedPly, onSelect }: ReviewPanelProps) {
-  const rows: { number: number; white?: (typeof review.moves)[number]; black?: (typeof review.moves)[number] }[] =
-    [];
+  const rows: {
+    number: number;
+    white?: (typeof review.moves)[number];
+    black?: (typeof review.moves)[number];
+  }[] = [];
   for (const move of review.moves) {
     if (move.color === "white") {
       rows.push({ number: move.number, white: move });
@@ -127,6 +154,8 @@ export default function ReviewPanel({ review, selectedPly, onSelect }: ReviewPan
         <SummaryColumn title="Wit" summary={review.summary.white} />
         <SummaryColumn title="Zwart" summary={review.summary.black} />
       </div>
+
+      <Legend />
 
       <EvalGraph evals={review.eval} selectedPly={selectedPly} onSelect={onSelect} />
 

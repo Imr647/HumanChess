@@ -3,6 +3,7 @@ import { Chess } from "chess.js";
 import type { EvalLine, GameSnapshot, GameStatus, MoveClass } from "./types";
 
 export const CLASS_LABELS: Record<MoveClass, string> = {
+  great: "Geweldig",
   best: "Beste",
   excellent: "Uitstekend",
   good: "Goed",
@@ -12,13 +13,34 @@ export const CLASS_LABELS: Record<MoveClass, string> = {
 };
 
 export const CLASS_SYMBOLS: Record<MoveClass, string> = {
+  great: "!",
   best: "★",
-  excellent: "!",
+  excellent: "✓",
   good: "✓",
   inaccuracy: "?!",
   mistake: "?",
   blunder: "??",
 };
+
+export const CLASS_DESCRIPTIONS: Record<MoveClass, string> = {
+  great: "De enige goede zet — alle alternatieven zijn duidelijk slechter.",
+  best: "Dezelfde zet die Stockfish zou spelen.",
+  excellent: "Bijna net zo goed als de beste zet (≤ 2% verlies).",
+  good: "Prima zet, iets minder dan de beste (≤ 5% verlies).",
+  inaccuracy: "Maakt je stelling iets slechter (≤ 10% verlies).",
+  mistake: "Een duidelijke fout (≤ 20% verlies).",
+  blunder: "Een grote fout (> 20% verlies).",
+};
+
+export const CLASS_ORDER: MoveClass[] = [
+  "great",
+  "best",
+  "excellent",
+  "good",
+  "inaccuracy",
+  "mistake",
+  "blunder",
+];
 
 export function fenAtIndex(game: GameSnapshot, index: number): string {
   const chess = new Chess(game.initial_fen ?? undefined);

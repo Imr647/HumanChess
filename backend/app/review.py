@@ -13,6 +13,7 @@ LOSS_EXCELLENT = 2.0
 LOSS_GOOD = 5.0
 LOSS_INACCURACY = 10.0
 LOSS_MISTAKE = 20.0
+GREAT_MARGIN = 10.0
 
 
 def _score_cp(score: dict) -> int:
@@ -66,7 +67,9 @@ def _comment(
     cp_loss: int,
 ) -> str:
     best = best_san or "een andere zet"
-    if classification == "best":
+    if classification == "great":
+        text = "Geweldig! Dit was de enige goede zet in deze stelling."
+    elif classification == "best":
         text = "Beste zet volgens Stockfish."
     else:
         text = _BEST_HINT[classification].format(best=best)
@@ -94,6 +97,7 @@ def _positions(session: GameSession) -> list[chess.Board]:
 def _empty_summary() -> dict:
     return {
         "accuracy": 0.0,
+        "great": 0,
         "best": 0,
         "excellent": 0,
         "good": 0,
@@ -105,10 +109,14 @@ def _empty_summary() -> dict:
 
 def review_game(session: GameSession, depth: int = 12) -> dict:
     boards = _positions(session)
-    analyses = [stockfish.analyse(board, multipv=1, depth=depth) for board in boards]
+    analyses = [stockfish.analyse(board, multipv=2, depth=depth) for board in boards]
 
     evals = [_score_cp(a["lines"][0]["score"]) for a in analyses]
     best_moves = [a["best_move"] for a in analyses]
+
+    def second_cp(index: int) -> int | None:
+        lines = analyses[index]["lines"]
+        return _score_cp(lines[1]["score"]) if len(lines) > 1 else None
 
     moves: list[dict] = []
     summary = {"white": _empty_summary(), "black": _empty_summary()}
@@ -123,7 +131,13 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
 
         win_drop = max(0.0, (before_mover - after_mover) * 100.0)
         is_best = best_moves[index] == entry["uci"]
-        classification = _classify(win_drop, is_best)
+        only_good = False
+        if is_best:
+            alternative = second_cp(index)
+            if alternative is not None:
+                gap = abs(_win_prob_white(evals[index]) - _win_prob_white(alternative)) * 100.0
+                only_good = gap >= GREAT_MARGIN
+        classification = "great" if only_good else _classify(win_drop, is_best)
         accuracy = round(_accuracy(win_drop), 1)
 
         side = "white" if mover_white else "black"
