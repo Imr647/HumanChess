@@ -28,5 +28,6 @@ systemctl --user restart humanchess
 sleep 2
 systemctl --user --no-pager --lines=5 status humanchess || true
 
+IP="$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')"
 echo
-echo "HumanChess draait op http://$(hostname -I | awk '{print $1}'):8100"
+echo "HumanChess draait op http://${IP:-localhost}:8100"
