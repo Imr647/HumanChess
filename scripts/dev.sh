@@ -10,18 +10,23 @@ if [[ ! -d "$BACKEND/.venv" ]]; then
     exit 1
 fi
 
+BACK_PID=""
+FRONT_PID=""
+
 cleanup() {
-    [[ -n "${BACK_PID:-}" ]] && kill "$BACK_PID" 2>/dev/null || true
-    [[ -n "${FRONT_PID:-}" ]] && kill "$FRONT_PID" 2>/dev/null || true
+    trap - EXIT INT TERM
+    [[ -n "$FRONT_PID" ]] && kill "$FRONT_PID" 2>/dev/null || true
+    [[ -n "$BACK_PID" ]] && kill "$BACK_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
-echo "Backend op http://localhost:8000 (docs: /docs)"
-(cd "$BACKEND" && .venv/bin/uvicorn app.main:app --reload --port 8000) &
+echo "Backend op http://127.0.0.1:8000 (docs: /docs)"
+(cd "$BACKEND" && exec .venv/bin/uvicorn app.main:app --reload --port 8000) &
 BACK_PID=$!
 
 echo "Frontend op http://localhost:5173"
-(cd "$FRONTEND" && npm run dev) &
+(cd "$FRONTEND" && exec npm run dev) &
 FRONT_PID=$!
 
-wait
+wait -n "$BACK_PID" "$FRONT_PID"
+echo "Een van de servers is gestopt; de andere wordt afgesloten." >&2
