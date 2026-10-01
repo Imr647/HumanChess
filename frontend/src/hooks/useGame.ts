@@ -148,28 +148,31 @@ export function useGame() {
     async (uci: string) => {
       const id = gameIdRef.current;
       if (!id) return null;
-      let snap = await apply(api.move(id, uci));
-      let guard = 0;
-      while (snap && snap.status === "ongoing" && guard < 100) {
-        guard += 1;
-        if (!snap.player_turn) {
-          snap = await apply(api.botMove(id));
-          continue;
-        }
-        const pm = premoveRef.current;
-        if (!pm) break;
-        premoveRef.current = null;
-        setPremove(null);
-        if (!premoveIsLegal(snap.fen, pm)) {
-          showNotice("Voorzet verviel: die zet is onwettig na de zet van de bot.");
-          break;
-        }
-        snap = await apply(api.move(id, premoveToUci(pm)));
+      const snap = await apply(api.move(id, uci));
+      if (snap && snap.status === "ongoing" && !snap.player_turn) {
+        return apply(api.botMove(id));
       }
       return snap;
     },
-    [apply, showNotice],
+    [apply],
   );
+
+  // Verwerk een geplande voorzet zodra de speler weer aan zet is. Dit los van de
+  // move-lus, zodat een voorzet die tijdens het nadenken van de bot wordt gegeven
+  // niet gemist wordt of blijft hangen.
+  useEffect(() => {
+    if (busy || !game) return;
+    if (game.status !== "ongoing" || !game.player_turn) return;
+    const pm = premoveRef.current;
+    if (!pm) return;
+    premoveRef.current = null;
+    setPremove(null);
+    if (!premoveIsLegal(game.fen, pm)) {
+      showNotice("Voorzet verviel: die zet is niet mogelijk na de zet van de bot.");
+      return;
+    }
+    void playerMove(premoveToUci(pm));
+  }, [game, busy, playerMove, showNotice]);
 
   const undo = useCallback(() => {
     const id = gameIdRef.current;

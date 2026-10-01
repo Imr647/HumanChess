@@ -13,6 +13,7 @@ interface BoardProps {
   premove: Premove | null;
   onMove: (uci: string) => void;
   onPremove: (pm: Premove) => void;
+  onClearPremove?: () => void;
   arrows?: Arrow[];
   fenOverride?: string | null;
   lastMoveOverride?: string | null;
@@ -36,6 +37,7 @@ export default function Board({
   premove,
   onMove,
   onPremove,
+  onClearPremove,
   arrows = [],
   fenOverride = null,
   lastMoveOverride = null,
@@ -152,9 +154,11 @@ export default function Board({
     if (mode === "locked" || !targetSquare) return false;
 
     if (mode === "premove") {
-      const target = board.get(targetSquare as Square);
-      const ownTarget = target?.color === playerChar;
-      if (sourceSquare !== targetSquare && !ownTarget) {
+      // Terug op hetzelfde vak: voorzet wissen. Verder mag een voorzet ook naar
+      // een eigen stuk (recapture) — de legaliteit wordt pas na de botzet bepaald.
+      if (sourceSquare === targetSquare) {
+        onClearPremove?.();
+      } else {
         queuePremove(sourceSquare, targetSquare);
       }
       return false;
@@ -235,6 +239,9 @@ export default function Board({
           canDragPiece: ({ piece }) => mode !== "locked" && piece.pieceType[0] === playerChar,
           onPieceDrop: handleDrop,
           onSquareClick: handleSquareClick,
+          onSquareRightClick: () => {
+            if (premove) onClearPremove?.();
+          },
           squareStyles,
           squareRenderer,
           arrows: boardArrows,

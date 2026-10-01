@@ -276,6 +276,7 @@ export default function App() {
             premove={g.premove}
             onMove={(uci) => void g.playerMove(uci)}
             onPremove={g.queuePremove}
+            onClearPremove={g.clearPremove}
             arrows={arrows}
             fenOverride={previewing ? fenAtIndex(game, previewPly ?? 0) : null}
             lastMoveOverride={previewing ? uciAtPly(game, (previewPly ?? 0) - 1) : null}
@@ -305,6 +306,11 @@ export default function App() {
           {mode === "premove" && !g.premove && (
             <p className="muted premove-tip">
               Je kunt alvast je volgende zet aangeven (voorzet).
+            </p>
+          )}
+          {g.premove && mode === "premove" && (
+            <p className="muted premove-tip">
+              Voorzet gepland. Rechtsklik of sleep terug om te wissen.
             </p>
           )}
           {g.hint?.san && <div className="hint-line">Hint: {g.hint.san}</div>}
