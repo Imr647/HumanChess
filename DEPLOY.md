@@ -4,7 +4,7 @@
 
 | Onderdeel | Waarde |
 |-----------|--------|
-| Host | `192.168.1.126` |
+| Host | `chess.local` / `192.168.1.126` |
 | SSH user | `i647` |
 | Pad | `/home/i647/humanchess` |
 | Service | `humanchess.service` (systemd --user) |
@@ -27,14 +27,21 @@ echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/99-unpriv
 
 # Firewall openzetten
 sudo ufw allow 80/tcp
+```
 
-# Vriendelijke naam chess.local publiceren via mDNS
-echo '192.168.1.126 chess.local' | sudo tee -a /etc/avahi/hosts
-sudo systemctl restart avahi-daemon
+De mini heet `chess`, zodat avahi/systemd-resolved `chess.local` publiceren:
+
+```bash
+sudo hostnamectl set-hostname chess
+sudo sed -i 's/\bCashyUM\b/chess/g' /etc/hosts
+sudo sed -i '/chess\.local/d' /etc/avahi/hosts
+sudo systemctl restart systemd-resolved avahi-daemon
 ```
 
 Zonder de sysctl/ufw-stap kan `caddy.service` niet op poort 80 binden en
-herstart de service blijven proberen.
+herstart de service blijven proberen. Let op: op poort 5353 draait ook Steam
+(`steamwebhelper`); mDNS-publicatie van *extra* namen naast de hostnaam werkt
+daardoor niet betrouwbaar — vandaar de hostnaam-aanpak.
 
 ## Deployen
 
