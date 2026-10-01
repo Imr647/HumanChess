@@ -8,11 +8,33 @@
 | SSH user | `i647` |
 | Pad | `/home/i647/humanchess` |
 | Service | `humanchess.service` (systemd --user) |
-| Poort | `8100` (WatchWatcher gebruikt 8000) |
-| URL | http://192.168.1.126:8100 |
+| Poort | `8100` (direct) en `80` via Caddy (WatchWatcher gebruikt 8000) |
+| URL | **http://chess.local** (of http://192.168.1.126) |
 
 De backend (FastAPI) serveert zowel de API als de gebouwde frontend
-(`frontend/dist`), dus er is één service op één poort.
+(`frontend/dist`), dus er is één service op één poort. Een **Caddy**
+reverse proxy (`caddy.service`, systemd --user) luistert op poort 80 en
+stuurt door naar `127.0.0.1:8100`, zodat je geen poortnummer hoeft te typen.
+
+## Eenmalige systeem-stappen (met sudo)
+
+Deze zijn op de mini al gedaan of moeten eenmalig gebeuren:
+
+```bash
+# Poort 80 toestaan voor user-processen (persistent)
+sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
+echo 'net.ipv4.ip_unprivileged_port_start=80' | sudo tee /etc/sysctl.d/99-unprivileged-ports.conf
+
+# Firewall openzetten
+sudo ufw allow 80/tcp
+
+# Vriendelijke naam chess.local publiceren via mDNS
+echo '192.168.1.126 chess.local' | sudo tee -a /etc/avahi/hosts
+sudo systemctl restart avahi-daemon
+```
+
+Zonder de sysctl/ufw-stap kan `caddy.service` niet op poort 80 binden en
+herstart de service blijven proberen.
 
 ## Deployen
 

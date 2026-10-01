@@ -24,18 +24,23 @@ echo "==> Caddy ophalen (reverse proxy op poort 80)"
 
 echo "==> systemd services installeren en herstarten"
 mkdir -p "$HOME/.config/systemd/user"
-for unit in humanchess caddy avahi-alias; do
+for unit in humanchess caddy; do
     ln -sf "$ROOT/$unit.service" "$HOME/.config/systemd/user/$unit.service"
 done
 systemctl --user daemon-reload
-systemctl --user enable --now humanchess caddy avahi-alias
+systemctl --user enable --now humanchess caddy
 systemctl --user restart humanchess
 sleep 1
-systemctl --user restart caddy avahi-alias
+systemctl --user restart caddy
 sleep 2
-for unit in humanchess caddy avahi-alias; do
+for unit in humanchess caddy; do
     systemctl --user --no-pager --lines=3 status "$unit" || true
 done
+if ! systemctl --user is-active --quiet caddy; then
+    echo "LET OP: caddy kan niet op poort 80 binden. Draai eenmalig (met sudo):"
+    echo "  sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80"
+    echo "  sudo ufw allow 80/tcp"
+fi
 
 IP="$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}')"
 echo
