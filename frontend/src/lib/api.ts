@@ -39,6 +39,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ uci }),
     }),
+  botMove: (id: string) =>
+    request<GameSnapshot>(`/games/${id}/bot-move`, { method: "POST" }),
   undo: (id: string) =>
     request<GameSnapshot>(`/games/${id}/undo`, { method: "POST" }),
   resign: (id: string) =>

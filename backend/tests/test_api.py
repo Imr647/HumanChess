@@ -33,9 +33,18 @@ def test_play_and_undo():
         resp = client.post(f"/api/games/{game['id']}/move", json={"uci": "e2e4"})
         assert resp.status_code == 200
         after = resp.json()
-        assert len(after["moves"]) == 2
+        assert len(after["moves"]) == 1
         assert after["moves"][0]["san"] == "e4"
-        assert after["player_turn"] is True
+        assert after["player_turn"] is False
+
+        resp = client.post(f"/api/games/{game['id']}/bot-move")
+        assert resp.status_code == 200
+        replied = resp.json()
+        assert len(replied["moves"]) == 2
+        assert replied["player_turn"] is True
+
+        resp = client.post(f"/api/games/{game['id']}/bot-move")
+        assert resp.status_code == 400
 
         resp = client.post(f"/api/games/{game['id']}/undo")
         assert resp.status_code == 200

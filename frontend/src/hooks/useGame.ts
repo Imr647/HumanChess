@@ -69,10 +69,14 @@ export function useGame() {
   );
 
   const playerMove = useCallback(
-    (uci: string) => {
+    async (uci: string) => {
       const id = gameIdRef.current;
-      if (!id) return Promise.resolve(null);
-      return apply(api.move(id, uci));
+      if (!id) return null;
+      const snap = await apply(api.move(id, uci));
+      if (snap && snap.status === "ongoing" && !snap.player_turn) {
+        return apply(api.botMove(id));
+      }
+      return snap;
     },
     [apply],
   );

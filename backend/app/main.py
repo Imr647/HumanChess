@@ -122,8 +122,17 @@ def make_move(game_id: str, req: MoveRequest) -> dict:
             session.apply_player_move(req.uci)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from None
-        if session.status == "ongoing" and session.is_bot_turn():
-            session.apply_bot_move()
+    _save(session)
+    return session.snapshot()
+
+
+@app.post("/api/games/{game_id}/bot-move")
+def bot_move(game_id: str) -> dict:
+    session = _get_session(game_id)
+    with _lock:
+        if session.status != "ongoing" or not session.is_bot_turn():
+            raise HTTPException(status_code=400, detail="De bot is niet aan zet")
+        session.apply_bot_move()
     _save(session)
     return session.snapshot()
 
