@@ -1135,3 +1135,118 @@ button.icon {
     font-size: 0.9rem;
   }
 }
+
+/* Bedieningsbalk voor de analyse, direct onder het bord: zo kun je door de partij
+   lopen terwijl je het bord blijft zien. */
+.analysis-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.analysis-nav-knoppen {
+  display: flex;
+  gap: 6px;
+}
+
+.analysis-nav-knoppen button {
+  min-width: 44px;
+  font-size: 0.95rem;
+}
+
+.analysis-nav-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.analysis-nav-zet {
+  font-weight: 600;
+}
+
+.analysis-nav-oordeel {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.analysis-nav-acties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Op een groot scherm moet de balk in een rij passen, anders duwt hij het bord
+   van het scherm. */
+@media (min-width: 861px) {
+  .analysis-nav {
+    gap: 6px 10px;
+    padding: 6px 10px;
+  }
+
+  .analysis-nav-knoppen button {
+    min-width: 38px;
+    min-height: 32px;
+    font-size: 0.9rem;
+  }
+
+  .analysis-nav-zet {
+    font-size: 0.95rem;
+  }
+
+  .analysis-nav .ghost {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    min-height: 32px;
+  }
+
+  /* Met de analysebalk eronder past het bord niet meer op een scherm; alleen dan
+     maken we het iets kleiner, zodat de balk in beeld blijft. */
+  .board-column.heeft-analyse {
+    max-width: min(100%, calc(100vh - 300px));
+  }
+}
+
+@media (max-width: 860px) {
+  .analysis-nav {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .analysis-nav-knoppen {
+    gap: 6px;
+  }
+
+  .analysis-nav-knoppen button {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 1rem;
+  }
+
+  .analysis-nav-info {
+    flex: 1 1 118px;
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+
+  .analysis-nav-acties {
+    width: 100%;
+  }
+
+  /* natuurlijke breedte, anders perst de tekst zich in meerdere regels */
+  .analysis-nav-acties button {
+    flex: 0 1 auto;
+    min-height: 40px;
+  }
+
+  .eval-graph {
+    height: 110px;
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Arrow } from "react-chessboard";
 
+import AnalysisNav from "./components/AnalysisNav";
 import Avatar from "./components/Avatar";
 import Board from "./components/Board";
 import ChatFeed from "./components/ChatFeed";
@@ -211,6 +212,27 @@ export default function App() {
 
   const freeDisplayFen = free ? free.fen : null;
 
+  // Op de classificatie sorteren en niet op cp_loss: bij matstellingen loopt dat
+  // verlies op tot tienduizenden centipawns, waardoor een winnende zet als de
+  // grootste fout uit de bus kwam.
+  const eigenFout = (() => {
+    if (!g.review) return null;
+    const ernst: Record<string, number> = {
+      blunder: 4,
+      miss: 3,
+      mistake: 2,
+      inaccuracy: 1,
+    };
+    const kandidaten = g.review.moves.filter(
+      (m) => m.color === game.player_color && (ernst[m.classification] ?? 0) > 0,
+    );
+    kandidaten.sort(
+      (a, b) =>
+        (ernst[b.classification] ?? 0) - (ernst[a.classification] ?? 0) || b.win_drop - a.win_drop,
+    );
+    return kandidaten[0] ?? null;
+  })();
+
   const startFree = () => {
     let plek = previewing ? previewPly ?? 0 : game.moves.length;
     let fen = fenAtIndex(game, plek);
@@ -269,7 +291,7 @@ export default function App() {
       )}
 
       <main className="game-main">
-        <div className="board-column">
+        <div className={g.review ? "board-column heeft-analyse" : "board-column"}>
           <div className="board-toolbar">
             <button onClick={() => setFlipped((v) => !v)}>Draai bord</button>
             {!free && g.premoves.length > 0 && (
@@ -357,6 +379,35 @@ export default function App() {
             orientation={orientation}
             showCoords={showCoords}
           />
+          {g.stockfishAvailable && game.moves.length > 0 && (
+            <button
+              className={g.review ? "ghost" : ""}
+              disabled={g.reviewLoading}
+              onClick={() => {
+                if (g.review) {
+                  g.clearReview();
+                  setPreviewPly(null);
+                } else {
+                  void g.runReview();
+                }
+              }}
+            >
+              {g.reviewLoading
+                ? "Partij doornemen..."
+                : g.review
+                  ? "Verberg analyse"
+                  : "Partij doornemen"}
+            </button>
+          )}
+          {g.review && (
+            <AnalysisNav
+              review={g.review}
+              totalPositions={totalPositions}
+              previewPly={previewPly}
+              onSelect={setPreviewPly}
+              eigenFout={eigenFout}
+            />
+          )}
           {selectedMove && (
             <div className={`move-comment ${selectedMove.classification}`}>
               <div className="move-comment-head">
@@ -437,27 +488,6 @@ export default function App() {
               </button>
               <button onClick={g.leaveGame}>Andere bot</button>
             </div>
-          )}
-
-          {g.stockfishAvailable && game.moves.length > 0 && (
-            <button
-              className={g.review ? "ghost" : ""}
-              disabled={g.reviewLoading}
-              onClick={() => {
-                if (g.review) {
-                  g.clearReview();
-                  setPreviewPly(null);
-                } else {
-                  void g.runReview();
-                }
-              }}
-            >
-              {g.reviewLoading
-                ? "Partij doornemen..."
-                : g.review
-                  ? "Verberg analyse"
-                  : "Partij doornemen"}
-            </button>
           )}
 
           {g.stockfishAvailable && (!g.review || free) && (
