@@ -13,6 +13,7 @@ class BotPersona:
     description: str
     temperature: float
     top_p: float
+    think_ms: int = 1200
     model: str = DEFAULT_MODEL
 
 
@@ -24,6 +25,7 @@ BOTS: list[BotPersona] = [
         description="Rustige beginner. Maakt vaak fouten en pakt materiaal niet altijd terug.",
         temperature=0.9,
         top_p=0.95,
+        think_ms=1800,
     ),
     BotPersona(
         id="sanne",
@@ -32,6 +34,7 @@ BOTS: list[BotPersona] = [
         description="Gezellige clubspeler. Solide openingen, wisselt soms af.",
         temperature=0.85,
         top_p=0.95,
+        think_ms=1500,
     ),
     BotPersona(
         id="mo",
@@ -40,6 +43,7 @@ BOTS: list[BotPersona] = [
         description="Degelijke clubspeler. Straft blunders meestal af.",
         temperature=0.8,
         top_p=0.97,
+        think_ms=1300,
     ),
     BotPersona(
         id="yara",
@@ -48,6 +52,7 @@ BOTS: list[BotPersona] = [
         description="Sterke speelster. Positioneel sterk en scherp in tactiek.",
         temperature=0.7,
         top_p=0.98,
+        think_ms=1100,
     ),
     BotPersona(
         id="viktor",
@@ -56,6 +61,7 @@ BOTS: list[BotPersona] = [
         description="Ervaren expert. Speelt nauwkeurig maar blijft menselijk.",
         temperature=0.6,
         top_p=0.99,
+        think_ms=1000,
     ),
 ]
 

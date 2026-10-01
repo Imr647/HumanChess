@@ -31,6 +31,8 @@ make test                 # backend tests
 
 ## Belangrijk
 
+- Bots hebben een menselijke bedenktijd (`think_ms` in `bots.py`), te schalen met
+  `HCHESS_BOT_THINK_SCALE` (0 = uit) en `HCHESS_BOT_THINK_JITTER` (variatie).
 - Maia-3 draait op **CPU** (default) of **ROCm** (`scripts/setup_gpu.sh`, experimenteel).
 - Engine-modelbestanden en stockfish-binary staan in `bin/` resp. HuggingFace-cache
   en worden **niet** gecommit.

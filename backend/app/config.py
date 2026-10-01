@@ -16,6 +16,9 @@ MAIA_HISTORY = os.environ.get("HCHESS_MAIA_HISTORY", "1") == "1"
 
 DEFAULT_MODEL = os.environ.get("HCHESS_MAIA_MODEL", "maia3-5m")
 
+BOT_THINK_SCALE = float(os.environ.get("HCHESS_BOT_THINK_SCALE", "1.0"))
+BOT_THINK_JITTER = float(os.environ.get("HCHESS_BOT_THINK_JITTER", "0.4"))
+
 STOCKFISH_DEPTH = int(os.environ.get("HCHESS_SF_DEPTH", "14"))
 STOCKFISH_THREADS = int(os.environ.get("HCHESS_SF_THREADS", "4"))
 STOCKFISH_HASH_MB = int(os.environ.get("HCHESS_SF_HASH", "256"))

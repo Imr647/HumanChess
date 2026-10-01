@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ import chess
 import chess.pgn
 
 from .bots import BotPersona, get_bot
+from .config import BOT_THINK_JITTER, BOT_THINK_SCALE
 from .maia import pool as maia_pool
 
 ONGOING = "ongoing"
@@ -142,16 +144,24 @@ class GameSession:
             return None
         board = self.board()
         bot = self.bot
-        opponent_elo = bot.elo
+        target_ms = (
+            bot.think_ms
+            * BOT_THINK_SCALE
+            * random.uniform(1 - BOT_THINK_JITTER, 1 + BOT_THINK_JITTER)
+        )
+        started = time.time()
         move = maia_pool.get(bot.model).move(
             board,
             self_elo=bot.elo,
-            oppo_elo=opponent_elo,
+            oppo_elo=bot.elo,
             temperature=bot.temperature,
             top_p=bot.top_p,
         )
         if move not in board.legal_moves:
             move = next(iter(board.legal_moves))
+        remaining_ms = target_ms - (time.time() - started) * 1000
+        if remaining_ms > 0:
+            time.sleep(remaining_ms / 1000)
         self.push_move(move)
         return move
 
