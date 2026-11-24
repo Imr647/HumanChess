@@ -68,21 +68,33 @@ export default function App() {
   }, [g.game]);
 
   useEffect(() => {
-    if (!previewing) return;
+    if (!g.game || free || totalPositions === 0) return;
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        setPreviewPly((p) => Math.max(0, (p ?? 0) - 1));
+        setPreviewPly((p) => Math.max(0, (p ?? totalPositions) - 1));
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
-        setPreviewPly((p) => Math.min(totalPositions, (p ?? 0) + 1));
+        setPreviewPly((p) => {
+          if (p === null) return null;
+          const next = Math.min(totalPositions, p + 1);
+          return !g.review && next === totalPositions ? null : next;
+        });
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setPreviewPly(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setPreviewPly(g.review ? totalPositions : null);
       } else if (event.key === "Escape") {
         setPreviewPly(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [previewing, totalPositions]);
+  }, [g.game, g.review, free, totalPositions]);
 
   const arrows: Arrow[] = useMemo(() => {
     const list: Arrow[] = [];
@@ -324,9 +336,14 @@ export default function App() {
             >
               Geluid {muted ? "uit" : "aan"}
             </button>
+            {game.opening && (
+              <span className="opening-pill" title="Herkende opening">
+                <span className="eco-code">{game.opening.eco}</span> {game.opening.name}
+              </span>
+            )}
           </div>
 
-          {previewing && g.review && (
+          {previewing && !g.review && (
             <div className="review-nav">
               <button onClick={() => setPreviewPly(0)} disabled={previewPly === 0}>
                 &lt;|
@@ -339,19 +356,22 @@ export default function App() {
               </button>
               <span className="review-nav-label">{navLabel}</span>
               <button
-                onClick={() => setPreviewPly(Math.min(totalPositions, (previewPly ?? 0) + 1))}
+                onClick={() => {
+                  const next = Math.min(totalPositions, (previewPly ?? 0) + 1);
+                  setPreviewPly(next === totalPositions ? null : next);
+                }}
                 disabled={previewPly === totalPositions}
               >
                 &gt;
               </button>
               <button
-                onClick={() => setPreviewPly(totalPositions)}
+                onClick={() => setPreviewPly(null)}
                 disabled={previewPly === totalPositions}
               >
                 |&gt;
               </button>
               <button className="ghost" onClick={() => setPreviewPly(null)}>
-                Terug naar partij
+                {ongoing ? "Terug naar live" : "Sluit replay"}
               </button>
             </div>
           )}
@@ -380,24 +400,38 @@ export default function App() {
             showCoords={showCoords}
           />
           {g.stockfishAvailable && game.moves.length > 0 && (
-            <button
-              className={g.review ? "ghost" : ""}
-              disabled={g.reviewLoading}
-              onClick={() => {
-                if (g.review) {
-                  g.clearReview();
-                  setPreviewPly(null);
-                } else {
-                  void g.runReview();
-                }
-              }}
-            >
-              {g.reviewLoading
-                ? "Partij doornemen..."
-                : g.review
-                  ? "Verberg analyse"
-                  : "Partij doornemen"}
-            </button>
+            <div className="review-trigger">
+              <button
+                className={g.review ? "ghost" : ""}
+                disabled={g.reviewLoading}
+                onClick={() => {
+                  if (g.review) {
+                    g.clearReview();
+                    setPreviewPly(null);
+                  } else {
+                    void g.runReview();
+                  }
+                }}
+              >
+                {g.reviewLoading
+                  ? g.reviewProgress
+                    ? `Partij doornemen (${g.reviewProgress.done}/${g.reviewProgress.total})...`
+                    : "Partij doornemen..."
+                  : g.review
+                    ? "Verberg analyse"
+                    : "Partij doornemen"}
+              </button>
+              {g.reviewLoading && g.reviewProgress && g.reviewProgress.total > 0 && (
+                <div className="progress-track">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.round((g.reviewProgress.done / g.reviewProgress.total) * 100)}%`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           )}
           {g.review && (
             <AnalysisNav
@@ -478,15 +512,18 @@ export default function App() {
               onResign={g.resign}
               onDraw={g.offerDraw}
               onExport={() => void g.exportPgn()}
+              onDownload={() => void g.downloadPgn()}
               onNew={g.leaveGame}
             />
           )}
           {!ongoing && (
             <div className="end-actions">
-              <button className="primary" onClick={() => void g.rematch()}>
+              <button className="primary" onClick={() => void g.rematch()} disabled={g.busy}>
                 Rematch
               </button>
               <button onClick={g.leaveGame}>Andere bot</button>
+              <button onClick={() => void g.exportPgn()}>PGN kopiëren</button>
+              <button onClick={() => void g.downloadPgn()}>Download PGN</button>
             </div>
           )}
 
@@ -502,8 +539,15 @@ export default function App() {
             />
           ) : (
             <div className="panel grow">
-              <h3>Zetten</h3>
-              <MoveList moves={game.moves} />
+              <div className="panel-head">
+                <h3>Zetten</h3>
+                {totalPositions > 0 && <span className="muted">← / → om terug te kijken</span>}
+              </div>
+              <MoveList
+                moves={game.moves}
+                selectedPly={previewPly}
+                onSelect={(ply) => setPreviewPly(ply)}
+              />
             </div>
           )}
         </aside>

@@ -67,6 +67,13 @@ button.danger:hover:not(:disabled) {
   border-color: var(--danger);
 }
 
+button.danger.confirm {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
 button.ghost {
   background: transparent;
 }
@@ -1249,4 +1256,151 @@ button.icon {
   .eval-graph {
     height: 110px;
   }
+}
+
+/* Opening pill, clickable movelist, progress bar, bot badges & rating chart */
+.opening-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.eco-code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.review-opening {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.panel-head .muted {
+  font-size: 0.76rem;
+}
+
+.move-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 6px;
+  text-align: left;
+  border-radius: 6px;
+  font: inherit;
+  color: var(--text);
+}
+
+.move-btn:hover {
+  background: var(--panel-2);
+  border-color: var(--border);
+}
+
+.move-btn.active {
+  background: var(--panel-2);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.review-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.review-trigger button {
+  width: 100%;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.bot-card.defeated {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.bot-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bot-crown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--accent-2);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.bot-record {
+  margin-top: 4px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.rating-chart {
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.rating-chart-head,
+.rating-chart-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.rating-delta.up {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.rating-delta.down {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.rating-svg {
+  width: 100%;
+  height: 64px;
+  display: block;
+  margin: 6px 0;
 }

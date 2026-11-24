@@ -13,6 +13,7 @@ from . import chat
 from .bots import BotPersona, get_bot
 from .config import BOT_THINK_JITTER, BOT_THINK_MAX_FRACTION, BOT_THINK_MIN_MS, BOT_THINK_SCALE
 from .maia import pool as maia_pool
+from .openings import detect_opening
 
 ONGOING = "ongoing"
 CHECKMATE = "checkmate"
@@ -102,9 +103,9 @@ class GameSession:
 
     def _record_outcome(self) -> None:
         board = self.board()
-        if not board.is_game_over():
+        if not board.is_game_over(claim_draw=True):
             return
-        outcome = board.outcome()
+        outcome = board.outcome(claim_draw=True)
         if outcome is None:
             return
         self.result = outcome.result()
@@ -169,7 +170,23 @@ class GameSession:
         self.push_move(move)
         return move
 
-    def apply_bot_move(self) -> chess.Move | None:
+    def _capture_event(self, board: chess.Board, move: chess.Move) -> str | None:
+        if not board.is_capture(move):
+            return None
+        if board.is_en_passant(move):
+            return "capture_pawn"
+        victim = board.piece_at(move.to_square)
+        if victim is None:
+            return "capture"
+        if victim.piece_type == chess.QUEEN:
+            return "capture_queen"
+        if victim.piece_type == chess.ROOK:
+            return "capture_major"
+        if victim.piece_type in (chess.BISHOP, chess.KNIGHT):
+            return "capture_minor"
+        return "capture_pawn"
+
+    def apply_bot_move(self, oppo_elo: int | None = None) -> chess.Move | None:
         if self.status != ONGOING or not self.is_bot_turn():
             return None
         board = self.board()
@@ -179,9 +196,11 @@ class GameSession:
             BOT_THINK_MIN_MS,
             int(self.live_remaining(bot_color) * BOT_THINK_MAX_FRACTION),
         )
+        phase_factor = 0.55 if len(self.moves) < 8 else 1.0
         target_ms = min(
             bot.think_ms
             * BOT_THINK_SCALE
+            * phase_factor
             * random.uniform(1 - BOT_THINK_JITTER, 1 + BOT_THINK_JITTER),
             budget,
         )
@@ -189,13 +208,13 @@ class GameSession:
         move = maia_pool.get(bot.model).move(
             board,
             self_elo=bot.elo,
-            oppo_elo=bot.elo,
+            oppo_elo=oppo_elo if oppo_elo is not None else bot.elo,
             temperature=bot.temperature,
             top_p=bot.top_p,
         )
         if move not in board.legal_moves:
             move = next(iter(board.legal_moves))
-        is_capture = board.is_capture(move)
+        capture_event = self._capture_event(board, move)
         remaining_ms = target_ms - (time.time() - started) * 1000
         if remaining_ms > 0:
             time.sleep(remaining_ms / 1000)
@@ -203,14 +222,22 @@ class GameSession:
         if self.status == ONGOING:
             if self.board().is_check():
                 self._bot_says("check")
-            elif is_capture:
-                self._bot_says("capture", 0.4)
+            elif capture_event is not None:
+                chance = 0.85 if capture_event == "capture_queen" else 0.4
+                self._bot_says(capture_event, chance)
         return move
 
-    def undo(self) -> bool:
-        if not self.moves:
+    def can_undo(self) -> bool:
+        if self.status != ONGOING or not self.moves:
             return False
-        if self.status != ONGOING:
+        if self.is_bot_turn():
+            return True
+        if self.initial_fen is None and not self.player_is_white and len(self.moves) < 2:
+            return False
+        return len(self.moves) >= 2
+
+    def undo(self) -> bool:
+        if not self.can_undo():
             return False
         self.assisted = True
         if self.is_bot_turn():
@@ -219,6 +246,8 @@ class GameSession:
             self.moves.pop()
             if self.moves:
                 self.moves.pop()
+        ply = len(self.moves)
+        self.chat = [msg for msg in self.chat if msg.get("ply", 0) <= ply]
         self.turn_started_at = time.time()
         self.updated_at = time.time()
         return True
@@ -240,6 +269,12 @@ class GameSession:
         self.result = "1/2-1/2"
         self.updated_at = time.time()
         self._bot_says("draw")
+
+    def decline_draw(self) -> None:
+        if self.status != ONGOING:
+            return
+        self.updated_at = time.time()
+        self._bot_says("draw_declined")
 
     def _move_list(self) -> list[dict]:
         board = chess.Board(self.initial_fen) if self.initial_fen else chess.Board()
@@ -305,9 +340,10 @@ class GameSession:
             "status": live_status,
             "result": self.result,
             "result_reason": self.result_reason,
-            "can_undo": bool(self.moves) and live_status == ONGOING,
+            "can_undo": self.can_undo(),
             "rated": self.rated,
             "assisted": self.assisted,
+            "opening": detect_opening(self.moves, self.initial_fen),
             "clock": {
                 "base_ms": self.base_ms,
                 "increment_ms": self.increment_ms,
@@ -373,10 +409,13 @@ def new_game(
     base_minutes: float,
     increment_seconds: float,
 ) -> GameSession:
+    resolved_color = (
+        random.choice(["white", "black"]) if player_color == "random" else player_color
+    )
     session = GameSession(
         id=uuid.uuid4().hex,
         bot_id=bot_id,
-        player_color=player_color,
+        player_color=resolved_color,
         base_ms=int(base_minutes * 60 * 1000),
         increment_ms=int(increment_seconds * 1000),
         white_ms=int(base_minutes * 60 * 1000),

@@ -33,6 +33,14 @@ class Stockfish:
             )
         return self._engine
 
+    def _reset(self) -> None:
+        if self._engine is not None:
+            try:
+                self._engine.quit()
+            except Exception:
+                pass
+            self._engine = None
+
     def analyse(
         self,
         board: chess.Board,
@@ -41,13 +49,24 @@ class Stockfish:
         time_limit: float | None = None,
     ) -> dict:
         depth = depth or STOCKFISH_DEPTH
+        multipv = max(1, min(multipv, 5))
         with self._lock:
-            engine = self._ensure()
-            infos = engine.analyse(
-                board,
-                chess.engine.Limit(depth=depth, time=time_limit),
-                multipv=multipv,
-            )
+            infos = None
+            last_exc: Exception | None = None
+            for _ in range(2):
+                try:
+                    engine = self._ensure()
+                    infos = engine.analyse(
+                        board,
+                        chess.engine.Limit(depth=depth, time=time_limit),
+                        multipv=multipv,
+                    )
+                    break
+                except (chess.engine.EngineError, BrokenPipeError, OSError) as exc:
+                    last_exc = exc
+                    self._reset()
+            if infos is None:
+                raise RuntimeError(f"Stockfish fout: {last_exc}") from last_exc
         if isinstance(infos, dict):
             infos = [infos]
 
@@ -82,12 +101,7 @@ class Stockfish:
 
     def close(self) -> None:
         with self._lock:
-            if self._engine is not None:
-                try:
-                    self._engine.quit()
-                except Exception:
-                    pass
-                self._engine = None
+            self._reset()
 
 
 stockfish = Stockfish()

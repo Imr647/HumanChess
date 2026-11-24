@@ -32,6 +32,37 @@ const PROMOTION_PIECES = [
 
 const PREMOVE_COLOR = "rgba(186, 104, 255, 0.55)";
 
+function isPlausiblePremoveTarget(
+  pieceType: string,
+  color: "w" | "b",
+  from: string,
+  to: string,
+): boolean {
+  const df = to.charCodeAt(0) - from.charCodeAt(0);
+  const dr = Number(to[1]) - Number(from[1]);
+  const adf = Math.abs(df);
+  const adr = Math.abs(dr);
+  if (adf === 0 && adr === 0) return false;
+  switch (pieceType) {
+    case "n":
+      return (adf === 1 && adr === 2) || (adf === 2 && adr === 1);
+    case "b":
+      return adf === adr;
+    case "r":
+      return adf === 0 || adr === 0;
+    case "q":
+      return adf === adr || adf === 0 || adr === 0;
+    case "k":
+      return adf <= 1 && adr <= 1;
+    case "p": {
+      const dir = color === "w" ? 1 : -1;
+      return dr === dir && adf === 1;
+    }
+    default:
+      return false;
+  }
+}
+
 export default function Board({
   game,
   mode,
@@ -70,7 +101,10 @@ export default function Board({
   const needsPromotion = (from: string, to: string) => {
     const piece = board.get(from as Square);
     if (!piece || piece.type !== "p") return false;
-    return (piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1");
+    const adf = Math.abs(to.charCodeAt(0) - from.charCodeAt(0));
+    if (adf > 1) return false;
+    if (piece.color === "w") return from[1] === "7" && to[1] === "8";
+    return from[1] === "2" && to[1] === "1";
   };
 
   const kingSquare = useMemo(() => {
@@ -121,7 +155,6 @@ export default function Board({
             width: "100%",
             height: "100%",
             position: "relative",
-            ...squareStyles[square],
           }}
         >
           {children}
@@ -133,7 +166,7 @@ export default function Board({
         </div>
       );
     };
-  }, [badges, squareStyles]);
+  }, [badges]);
 
   const boardArrows = useMemo(() => {
     if (premoves.length === 0) return arrows;
@@ -201,6 +234,14 @@ export default function Board({
       }
       if (mode === "premove") {
         if (piece && piece.pieceType[0] === playerChar) {
+          const selPiece = board.get(selected as Square);
+          if (
+            selPiece &&
+            isPlausiblePremoveTarget(selPiece.type, selPiece.color, selected, square)
+          ) {
+            queuePremove(selected, square);
+            return;
+          }
           setSelected(square);
           return;
         }

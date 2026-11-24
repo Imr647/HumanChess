@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { statusLabel } from "../lib/chessUtils";
-import type { Bot, GameSummary, NewGameConfig, Profile } from "../lib/types";
+import type {
+  Bot,
+  ColorChoice,
+  GameSummary,
+  NewGameConfig,
+  Profile,
+  RatingPoint,
+} from "../lib/types";
 import Avatar from "./Avatar";
 
 interface SetupPanelProps {
@@ -32,6 +39,64 @@ const PRESETS: { label: string; minutes: number; increment: number }[] = [
 
 const CUSTOM_INDEX = PRESETS.length - 1;
 
+function RatingChart({ history }: { history: RatingPoint[] }) {
+  if (history.length < 2) return null;
+  const ratings = history.map((p) => p.rating);
+  const minVal = Math.min(...ratings);
+  const maxVal = Math.max(...ratings);
+  const pad = Math.max(20, Math.round((maxVal - minVal) * 0.15));
+  const lo = minVal - pad;
+  const hi = maxVal + pad;
+  const span = Math.max(1, hi - lo);
+  const W = 280;
+  const H = 64;
+  const pts = history.map((p, i) => {
+    const x = (i / (history.length - 1)) * (W - 8) + 4;
+    const y = H - 6 - ((p.rating - lo) / span) * (H - 12);
+    return { x, y, point: p };
+  });
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const last = history[history.length - 1];
+  const deltaText = last.delta >= 0 ? `+${last.delta}` : `${last.delta}`;
+
+  return (
+    <div className="rating-chart">
+      <div className="rating-chart-head">
+        <span className="muted">Ratingverloop ({history.length} partijen)</span>
+        <span className={`rating-delta ${last.delta >= 0 ? "up" : "down"}`}>
+          Laatste: {deltaText} ({last.bot_name})
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="rating-svg" preserveAspectRatio="none">
+        <polyline
+          points={polyline}
+          fill="none"
+          stroke="#4f9cf9"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+        />
+        {pts.map((p, i) => (
+          <circle
+            key={`${p.point.at}-${i}`}
+            cx={p.x}
+            cy={p.y}
+            r="2.4"
+            fill={p.point.score === 1 ? "#22c55e" : p.point.score === 0 ? "#ef4444" : "#f59e0b"}
+          >
+            <title>
+              {`${p.point.rating} (${p.point.delta >= 0 ? "+" : ""}${p.point.delta}) vs ${p.point.bot_name}`}
+            </title>
+          </circle>
+        ))}
+      </svg>
+      <div className="rating-chart-foot muted">
+        <span>Laagst: {minVal}</span>
+        <span>Hoogst: {maxVal}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SetupPanel({
   bots,
   history,
@@ -44,24 +109,37 @@ export default function SetupPanel({
   onDelete,
 }: SetupPanelProps) {
   const [botId, setBotId] = useState(bots[4]?.id ?? bots[0]?.id ?? "mo");
-  const [color, setColor] = useState<"white" | "black">("white");
+  const [color, setColor] = useState<ColorChoice>("white");
+  const [importColor, setImportColor] = useState<"white" | "black">("white");
   const [presetIndex, setPresetIndex] = useState(6);
-  const [customMinutes, setCustomMinutes] = useState(10);
-  const [customIncrement, setCustomIncrement] = useState(0);
+  const [customMinutes, setCustomMinutes] = useState("10");
+  const [customIncrement, setCustomIncrement] = useState("0");
   const [pgn, setPgn] = useState("");
   const [tab, setTab] = useState<"new" | "import" | "history">("new");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const t = window.setTimeout(() => setConfirmDeleteId(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [confirmDeleteId]);
 
   const isCustom = presetIndex === CUSTOM_INDEX;
 
   const start = () => {
     const preset = PRESETS[presetIndex];
+    const parsedMin = Number.parseFloat(customMinutes);
+    const parsedInc = Number.parseFloat(customIncrement);
     onStart({
       bot_id: botId,
       player_color: color,
-      base_minutes: isCustom ? Math.max(0.1, customMinutes) : preset.minutes,
-      increment_seconds: isCustom ? Math.max(0, customIncrement) : preset.increment,
+      base_minutes: isCustom ? Math.max(0.1, Number.isFinite(parsedMin) ? parsedMin : 10) : preset.minutes,
+      increment_seconds: isCustom ? Math.max(0, Number.isFinite(parsedInc) ? parsedInc : 0) : preset.increment,
     });
   };
+
+  const botStats = profile?.bot_stats ?? {};
+  const defeatedCount = bots.filter((b) => (botStats[b.id]?.wins ?? 0) > 0).length;
 
   return (
     <div className="setup">
@@ -74,9 +152,11 @@ export default function SetupPanel({
             <span className="muted">
               {" "}
               · {profile.wins}W / {profile.losses}L / {profile.draws}R ({profile.games} partijen)
+              {bots.length > 0 ? ` · ${defeatedCount}/${bots.length} bots verslagen` : ""}
             </span>
           </p>
         )}
+        {profile && <RatingChart history={profile.history} />}
         {!stockfishAvailable && (
           <p className="warn">Stockfish niet gevonden: hints en analyse zijn uit.</p>
         )}
@@ -98,30 +178,48 @@ export default function SetupPanel({
         <div className="setup-body">
           <h2>Kies je tegenstander</h2>
           <div className="bot-grid">
-            {bots.map((bot) => (
-              <button
-                key={bot.id}
-                className={`bot-card ${bot.id === botId ? "selected" : ""}`}
-                onClick={() => setBotId(bot.id)}
-              >
-                <span className="bot-card-head">
-                  <Avatar name={bot.name} color={bot.color} size={38} />
-                  <span className="bot-card-meta">
-                    <span className="bot-name">{bot.name}</span>
-                    <span className="bot-elo">Elo {bot.elo}</span>
+            {bots.map((bot) => {
+              const stat = botStats[bot.id];
+              const defeated = (stat?.wins ?? 0) > 0;
+              const played = stat ? stat.wins + stat.losses + stat.draws : 0;
+              return (
+                <button
+                  key={bot.id}
+                  className={`bot-card ${bot.id === botId ? "selected" : ""} ${defeated ? "defeated" : ""}`}
+                  onClick={() => setBotId(bot.id)}
+                >
+                  <span className="bot-card-head">
+                    <Avatar name={bot.name} color={bot.color} size={38} />
+                    <span className="bot-card-meta">
+                      <span className="bot-name-row">
+                        <span className="bot-name">{bot.name}</span>
+                        {defeated && (
+                          <span className="bot-crown" title="Bot verslagen">
+                            ✓
+                          </span>
+                        )}
+                      </span>
+                      <span className="bot-elo">Elo {bot.elo}</span>
+                    </span>
                   </span>
-                </span>
-                <span className="bot-desc">{bot.description}</span>
-              </button>
-            ))}
+                  <span className="bot-desc">{bot.description}</span>
+                  {played > 0 && stat && (
+                    <span className="bot-record">
+                      {stat.wins}W · {stat.draws}R · {stat.losses}V
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="setup-row">
             <label>
               Speel als
-              <select value={color} onChange={(e) => setColor(e.target.value as "white" | "black")}>
+              <select value={color} onChange={(e) => setColor(e.target.value as ColorChoice)}>
                 <option value="white">Wit</option>
                 <option value="black">Zwart</option>
+                <option value="random">Willekeurig</option>
               </select>
             </label>
             <label>
@@ -141,9 +239,10 @@ export default function SetupPanel({
                   <input
                     type="number"
                     min={0.1}
+                    max={180}
                     step={1}
                     value={customMinutes}
-                    onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                    onChange={(e) => setCustomMinutes(e.target.value)}
                   />
                 </label>
                 <label>
@@ -151,9 +250,10 @@ export default function SetupPanel({
                   <input
                     type="number"
                     min={0}
+                    max={60}
                     step={1}
                     value={customIncrement}
-                    onChange={(e) => setCustomIncrement(Number(e.target.value))}
+                    onChange={(e) => setCustomIncrement(e.target.value)}
                   />
                 </label>
               </>
@@ -189,7 +289,10 @@ export default function SetupPanel({
             </label>
             <label>
               Jouw kleur
-              <select value={color} onChange={(e) => setColor(e.target.value as "white" | "black")}>
+              <select
+                value={importColor}
+                onChange={(e) => setImportColor(e.target.value as "white" | "black")}
+              >
                 <option value="white">Wit</option>
                 <option value="black">Zwart</option>
               </select>
@@ -198,7 +301,7 @@ export default function SetupPanel({
           <button
             className="primary"
             onClick={() => {
-              if (pgn.trim()) onImport(pgn, botId, color);
+              if (pgn.trim()) onImport(pgn, botId, importColor);
             }}
             disabled={busy || !pgn.trim()}
           >
@@ -212,25 +315,39 @@ export default function SetupPanel({
           <h2>Eerdere partijen</h2>
           {history.length === 0 && <p className="muted">Nog geen partijen gespeeld.</p>}
           <div className="history">
-            {history.map((item) => (
-              <div className="history-row" key={item.id}>
-                <button className="history-open" onClick={() => onOpen(item.id)}>
-                  <span>
-                    vs {item.bot_name} ({item.bot_elo})
-                  </span>
-                  <span className="muted">
-                    {item.player_color === "white" ? "wit" : "zwart"} · {item.move_count} zetten
-                  </span>
-                  <span className="history-status">
-                    {statusLabel(item.status)}
-                    {item.result ? ` ${item.result}` : ""}
-                  </span>
-                </button>
-                <button className="icon" onClick={() => onDelete(item.id)} title="Verwijderen">
-                  ×
-                </button>
-              </div>
-            ))}
+            {history.map((item) => {
+              const confirming = confirmDeleteId === item.id;
+              return (
+                <div className="history-row" key={item.id}>
+                  <button className="history-open" onClick={() => onOpen(item.id)}>
+                    <span>
+                      vs {item.bot_name} ({item.bot_elo})
+                    </span>
+                    <span className="muted">
+                      {item.player_color === "white" ? "wit" : "zwart"} · {item.move_count} zetten
+                    </span>
+                    <span className="history-status">
+                      {statusLabel(item.status)}
+                      {item.result ? ` ${item.result}` : ""}
+                    </span>
+                  </button>
+                  <button
+                    className={confirming ? "danger confirm" : "icon"}
+                    onClick={() => {
+                      if (!confirming) {
+                        setConfirmDeleteId(item.id);
+                      } else {
+                        setConfirmDeleteId(null);
+                        onDelete(item.id);
+                      }
+                    }}
+                    title="Verwijderen"
+                  >
+                    {confirming ? "Wis?" : "×"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

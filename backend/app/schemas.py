@@ -5,11 +5,12 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 Color = Literal["white", "black"]
+ColorChoice = Literal["white", "black", "random"]
 
 
 class NewGameRequest(BaseModel):
     bot_id: str
-    player_color: Color = "white"
+    player_color: ColorChoice = "white"
     base_minutes: float = Field(default=10, ge=0.1, le=180)
     increment_seconds: float = Field(default=0, ge=0, le=60)
 

@@ -36,6 +36,14 @@ class MaiaEngine:
             )
         return self._engine
 
+    def _reset(self) -> None:
+        if self._engine is not None:
+            try:
+                self._engine.quit()
+            except Exception:
+                pass
+            self._engine = None
+
     def move(
         self,
         board: chess.Board,
@@ -45,28 +53,30 @@ class MaiaEngine:
         top_p: float,
     ) -> chess.Move:
         with self._lock:
-            engine = self._ensure()
-            engine.configure(
-                {
-                    "SelfElo": self_elo,
-                    "OppoElo": oppo_elo,
-                    "Temperature": temperature,
-                    "TopP": top_p,
-                }
-            )
-            result = engine.play(board, chess.engine.Limit(nodes=1))
-        if result.move is None:
-            raise RuntimeError("Maia-3 gaf geen zet terug")
-        return result.move
+            last_exc: Exception | None = None
+            for _ in range(2):
+                try:
+                    engine = self._ensure()
+                    engine.configure(
+                        {
+                            "SelfElo": self_elo,
+                            "OppoElo": oppo_elo,
+                            "Temperature": temperature,
+                            "TopP": top_p,
+                        }
+                    )
+                    result = engine.play(board, chess.engine.Limit(nodes=1))
+                    if result.move is None:
+                        raise RuntimeError("Maia-3 gaf geen zet terug")
+                    return result.move
+                except (chess.engine.EngineError, BrokenPipeError, OSError) as exc:
+                    last_exc = exc
+                    self._reset()
+            raise RuntimeError(f"Maia-3 fout: {last_exc}") from last_exc
 
     def close(self) -> None:
         with self._lock:
-            if self._engine is not None:
-                try:
-                    self._engine.quit()
-                except Exception:
-                    pass
-                self._engine = None
+            self._reset()
 
 
 class MaiaPool:

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import chess
 import chess.polyglot
 
 from .config import REVIEW_DEPTH
 from .game import GameSession
+from .openings import BOOK_HASHES, BOOK_MAX_PLY, detect_opening
 from .stockfish import stockfish
 
 INFINITY_CP = 10000
@@ -17,7 +19,6 @@ LOSS_INACCURACY = 10.0
 LOSS_MISTAKE = 20.0
 GREAT_MARGIN = 20.0
 MISS_MIN_ADVANTAGE = 0.55
-BOOK_MAX_PLY = 20
 # Briljant en geweldig krijgen alleen betekenis in een stelling die nog niet
 # beslist is. In een partij die je al met 8 punten voorstaat is iets weggeven
 # geen kunst en is "de enige goede zet" niet bijzonder.
@@ -33,65 +34,6 @@ PIECE_VALUES = {
     chess.QUEEN: 900,
     chess.KING: 0,
 }
-
-OPENING_LINES = [
-    "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O",
-    "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d4 exd4 cxd4 Bb4+",
-    "e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nxc6 bxc6",
-    "e4 e5 Nf3 Nf6 Nxe5 d6 Nf3 Nxe4 d4 d5",
-    "e4 e5 Nf3 Nf6 Nc3 Nc6 Bb5",
-    "e4 e5 Nc3 Nf6 f4 d5 fxe5 Nxe4",
-    "e4 e5 f4 exf4 Nf3 g5 h4 g4 Ne5",
-    "e4 e5 Bc4 Nf6 d3 c6 Nf3 d5",
-    "e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6",
-    "e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 Nf6 Nc3 e5",
-    "e4 c5 Nf3 e6 d4 cxd4 Nxd4 Nf6 Nc3 Nc6",
-    "e4 c5 Nc3 Nc6 g3 g6 Bg2 Bg7 d3 d6",
-    "e4 c5 c3 Nf6 e5 Nd5 d4 cxd4 Nf3 Nc6",
-    "e4 c5 Nf3 d6 Bb5+ Bd7 Bxd7+ Qxd7 O-O Nc6",
-    "e4 e6 d4 d5 Nc3 Nf6 e5 Nfd7 f4 c5",
-    "e4 e6 d4 d5 Nc3 Bb4 e5 c5 a3 Bxc3+ bxc3",
-    "e4 e6 d4 d5 Nd2 Nf6 e5 Nfd7 Bd3 c5",
-    "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6",
-    "e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2",
-    "e4 d5 exd5 Qxd5 Nc3 Qa5 d4 Nf6 Nf3 c6",
-    "e4 Nf6 e5 Nd5 d4 d6 Nf3 dxe5 Nxe5",
-    "e4 d6 d4 Nf6 Nc3 g6 Nf3 Bg7 Be2 O-O",
-    "e4 g6 d4 Bg7 Nc3 d6 Nf3 Nf6 Be2 O-O",
-    "d4 d5 c4 e6 Nc3 Nf6 Nf3 Be7 Bg5 O-O e3",
-    "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7",
-    "d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6",
-    "d4 d5 c4 c6 Nc3 Nf6 e3 e6 Nf3 Nbd7 Bd3 dxc4",
-    "d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6",
-    "d4 d5 Nf3 Nf6 c4 c6 Nc3 e6 Bg5 h6",
-    "d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 d5 Nf3 c5",
-    "d4 Nf6 c4 e6 Nf3 b6 g3 Bb7 Bg2 Be7 O-O O-O",
-    "d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5",
-    "d4 Nf6 c4 g6 Nc3 d5 cxd5 Nxd5 e4 Nxc3 bxc3",
-    "d4 Nf6 c4 c5 d5 b5 cxb5 a6 bxa6 Bxa6",
-    "d4 Nf6 Nf3 e6 c4 b6 g3 Ba6 b3 Bb4+",
-    "d4 e6 c4 Nf6 Nc3 Bb4 e3 O-O Bd3 d5",
-    "d4 f5 g3 Nf6 Bg2 g6 Nf3 Bg7 O-O O-O",
-    "Nf3 d5 g3 Nf6 Bg2 e6 O-O Be7 d3 O-O",
-    "c4 e5 Nc3 Nf6 Nf3 Nc6 g3 d5 cxd5 Nxd5",
-    "c4 Nf6 Nc3 e6 Nf3 d5 d4 Be7 Bg5 O-O",
-]
-
-
-def _build_book() -> set[int]:
-    hashes: set[int] = set()
-    for line in OPENING_LINES:
-        board = chess.Board()
-        for token in line.split():
-            try:
-                board.push_san(token)
-            except ValueError:
-                break
-            hashes.add(chess.polyglot.zobrist_hash(board))
-    return hashes
-
-
-BOOK_HASHES = _build_book()
 
 
 def _terminal_score(board: chess.Board) -> int | None:
@@ -268,9 +210,18 @@ def review_depth(plies: int, base: int | None = None) -> int:
     return max(8, depth - 4)
 
 
-def review_game(session: GameSession, depth: int = 12) -> dict:
+def review_game(
+    session: GameSession,
+    depth: int = 12,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> dict:
     boards = _positions(session)
-    analyses = [stockfish.analyse(board, multipv=2, depth=depth) for board in boards]
+    total = len(boards)
+    analyses: list[dict] = []
+    for i, board in enumerate(boards, start=1):
+        analyses.append(stockfish.analyse(board, multipv=2, depth=depth))
+        if on_progress is not None:
+            on_progress(i, total)
 
     evals = [_score_cp(a["lines"][0]["score"]) for a in analyses]
     best_moves = [a["best_move"] for a in analyses]
@@ -390,4 +341,5 @@ def review_game(session: GameSession, depth: int = 12) -> dict:
         "moves": moves,
         "eval": evals,
         "initial_fen": session.initial_fen,
+        "opening": detect_opening(session.moves, session.initial_fen),
     }

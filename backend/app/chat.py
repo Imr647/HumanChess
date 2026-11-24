@@ -18,6 +18,14 @@ CHAT: dict[str, dict[str, list[str]]] = {
             "Materiaal, lekker.",
             "Oei, die stond in de weg.",
         ],
+        "capture_pawn": ["Een pionnetje meegepikt!", "Hap! Die pion is van mij."],
+        "capture_minor": ["Lekker, een stuk gewonnen!", "Die pak ik graag mee!"],
+        "capture_major": ["Oeh, die toren neem ik graag!", "Grote vangst!"],
+        "capture_queen": ["Wauw, je dame! Die laat ik niet liggen!", "Oeps, daar gaat je dame!"],
+        "draw_declined": [
+            "Nee hoor, ik wil nog even doorspelen!",
+            "Nog niet! Het is net spannend.",
+        ],
         "check": [
             "Schaak!",
             "Schaak! Let op je koning.",
@@ -56,12 +64,16 @@ CHAT: dict[str, dict[str, list[str]]] = {
             "Daar gaan we.",
         ],
         "capture": [
-            "Die pion pak ik terug.",
             "Materiaal gewonnen.",
             "Dat stuk is voor mij.",
             "Ik neem hem mee.",
             "Dank u.",
         ],
+        "capture_pawn": ["Die pion pak ik terug.", "Een pionnetje erbij."],
+        "capture_minor": ["Dat stuk pak ik graag.", "Materiaal gewonnen."],
+        "capture_major": ["Een zwaar stuk minder voor jou.", "Die toren neem ik."],
+        "capture_queen": ["De dame gaat van het bord.", "Die dame kon ik niet laten staan."],
+        "draw_declined": ["Ik speel liever nog even door.", "Ik zie nog kansen, geen remise."],
         "check": [
             "Schaak.",
             "Schaak, even opletten.",
@@ -106,6 +118,11 @@ CHAT: dict[str, dict[str, list[str]]] = {
             "Genomen.",
             "Ik houd het simpel.",
         ],
+        "capture_pawn": ["Pion gewonnen.", "Opgeruimd."],
+        "capture_minor": ["Stuk minder voor jou.", "Materiaal."],
+        "capture_major": ["Kwaliteit telt.", "Toren van het bord."],
+        "capture_queen": ["Dame gewonnen. Dit wordt lastig.", "Beslissend materiaal."],
+        "draw_declined": ["Geen remise. Ik sta beter.", "We spelen door."],
         "check": [
             "Schaak.",
             "Schaak, oplossen.",
@@ -139,7 +156,10 @@ CHAT: dict[str, dict[str, list[str]]] = {
 
 
 def line(tone: str, event: str) -> str:
-    options = CHAT.get(tone, CHAT["rustig"]).get(event)
+    palette = CHAT.get(tone, CHAT["rustig"])
+    options = palette.get(event)
+    if not options and event.startswith("capture_"):
+        options = palette.get("capture")
     if not options:
         options = CHAT["rustig"]["greeting"]
     return random.choice(options)

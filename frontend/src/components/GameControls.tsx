@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 interface GameControlsProps {
   canUndo: boolean;
   canHint: boolean;
@@ -10,6 +12,7 @@ interface GameControlsProps {
   onResign: () => void;
   onDraw: () => void;
   onExport: () => void;
+  onDownload: () => void;
   onNew: () => void;
 }
 
@@ -25,8 +28,26 @@ export default function GameControls({
   onResign,
   onDraw,
   onExport,
+  onDownload,
   onNew,
 }: GameControlsProps) {
+  const [confirmResign, setConfirmResign] = useState(false);
+
+  useEffect(() => {
+    if (!confirmResign) return;
+    const t = window.setTimeout(() => setConfirmResign(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [confirmResign]);
+
+  const handleResign = () => {
+    if (!confirmResign) {
+      setConfirmResign(true);
+      return;
+    }
+    setConfirmResign(false);
+    onResign();
+  };
+
   return (
     <div className="controls">
       <button onClick={onUndo} disabled={!canUndo || busy}>
@@ -38,13 +59,18 @@ export default function GameControls({
       <button onClick={onAnalyse} disabled={busy || !stockfishAvailable}>
         Analyse
       </button>
-      <button className="danger" onClick={onResign} disabled={!canAct}>
-        Opgeven
+      <button
+        className={`danger ${confirmResign ? "confirm" : ""}`}
+        onClick={handleResign}
+        disabled={!canAct}
+      >
+        {confirmResign ? "Zeker opgeven?" : "Opgeven"}
       </button>
-      <button onClick={onDraw} disabled={!canAct}>
+      <button onClick={onDraw} disabled={!canAct || busy}>
         Remise
       </button>
       <button onClick={onExport}>PGN kopiëren</button>
+      <button onClick={onDownload}>Download PGN</button>
       <button className="ghost" onClick={onNew}>
         Nieuwe partij
       </button>

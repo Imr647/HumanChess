@@ -85,6 +85,57 @@ export const api = {
   // De beoordeling van een lange partij mag lang duren: geen tijdslimiet.
   review: (id: string, depth = 0) =>
     request<ReviewResult>(`/games/${id}/review?depth=${depth}`, undefined, 0),
+  reviewStream: (
+    id: string,
+    onProgress: (done: number, total: number) => void,
+    depth = 0,
+  ): Promise<ReviewResult> =>
+    new Promise((resolve, reject) => {
+      if (typeof EventSource === "undefined") {
+        request<ReviewResult>(`/games/${id}/review?depth=${depth}`, undefined, 0).then(
+          resolve,
+          reject,
+        );
+        return;
+      }
+      const es = new EventSource(`${BASE}/games/${id}/review/stream?depth=${depth}`);
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        es.close();
+        fn();
+      };
+      es.addEventListener("progress", (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as { done: number; total: number };
+          onProgress(data.done, data.total);
+        } catch {
+          /* stil */
+        }
+      });
+      es.addEventListener("result", (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as ReviewResult;
+          finish(() => resolve(data));
+        } catch (err) {
+          finish(() => reject(err));
+        }
+      });
+      es.addEventListener("error", (ev) => {
+        const msgEvent = ev as MessageEvent;
+        if (msgEvent.data) {
+          try {
+            const body = JSON.parse(msgEvent.data) as { detail?: string };
+            finish(() => reject(new Error(body.detail ?? "Analyse mislukt")));
+            return;
+          } catch {
+            /* val terug */
+          }
+        }
+        finish(() => reject(new Error("Verbinding met analyse-stream verbroken")));
+      });
+    }),
   pgn: async (id: string): Promise<string> => {
     const res = await fetch(`${BASE}/games/${id}/pgn`);
     if (!res.ok) throw new Error("Kon PGN niet ophalen");

@@ -10,6 +10,7 @@ import type {
   NewGameConfig,
   Premove,
   Profile,
+  ReviewProgress,
   ReviewResult,
 } from "../lib/types";
 
@@ -27,6 +28,49 @@ function premoveIsLegal(fen: string, pm: Premove): boolean {
   }
 }
 
+function parseGameHash(): string | null {
+  if (typeof window === "undefined") return null;
+  const match = window.location.hash.match(/^#game\/([a-f0-9]+)$/i);
+  return match ? match[1] : null;
+}
+
+function setGameHash(id: string | null) {
+  if (typeof window === "undefined") return;
+  const target = id ? `#game/${id}` : "";
+  if (window.location.hash === target) return;
+  if (id) {
+    window.history.replaceState(null, "", target);
+  } else {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* fallback */
+    }
+  }
+  const el = document.createElement("textarea");
+  el.value = text;
+  el.setAttribute("readonly", "");
+  el.style.position = "fixed";
+  el.style.opacity = "0";
+  document.body.appendChild(el);
+  el.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(el);
+  return ok;
+}
+
 const MAX_PREMOVES = 8;
 
 export function useGame() {
@@ -42,8 +86,10 @@ export function useGame() {
   const [notice, setNotice] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewResult | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewProgress, setReviewProgress] = useState<ReviewProgress | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const gameIdRef = useRef<string | null>(null);
+  const gameRef = useRef<GameSnapshot | null>(null);
   const premovesRef = useRef<Premove[]>([]);
   // Eén wijziging tegelijk: zo kunnen een voorzet en een handmatige zet niet naast
   // elkaar naar de server gaan en elkaar overschrijven.
@@ -131,13 +177,17 @@ export function useGame() {
       // mag het bord niet meer terugzetten.
       if (seq !== seqRef.current) return null;
       gameIdRef.current = snap.id;
+      gameRef.current = snap;
+      setGameHash(snap.id);
       setGame(snap);
       setHint(null);
       setEvalResult(null);
       setReview(null);
+      setReviewProgress(null);
       if (snap.status !== "ongoing") {
         zetVoorzetten([]);
         void loadProfile();
+        void loadHistory();
       }
       return snap;
     } catch (e) {
@@ -146,7 +196,7 @@ export function useGame() {
     } finally {
       if (seq === seqRef.current) setBusy(false);
     }
-  }, [loadProfile, zetVoorzetten]);
+  }, [loadHistory, loadProfile, zetVoorzetten]);
 
   const metSlot = useCallback(async <T>(werk: () => Promise<T>): Promise<T | null> => {
     if (inFlightRef.current) return null;
@@ -169,21 +219,61 @@ export function useGame() {
   );
 
   const rematch = useCallback(() => {
-    const config = lastConfigRef.current;
-    if (!config) return Promise.resolve(null);
-    return startGame({
-      ...config,
-      player_color: config.player_color === "white" ? "black" : "white",
-    });
+    const current = gameRef.current;
+    const saved = lastConfigRef.current;
+    const baseConfig: NewGameConfig | null = current
+      ? {
+          bot_id: current.bot.id,
+          player_color: current.player_color === "white" ? "black" : "white",
+          base_minutes: Math.max(0.1, current.clock.base_ms / 60000),
+          increment_seconds: Math.max(0, current.clock.increment_ms / 1000),
+        }
+      : saved
+        ? {
+            ...saved,
+            player_color: saved.player_color === "white" ? "black" : "white",
+          }
+        : null;
+    if (!baseConfig) return Promise.resolve(null);
+    return startGame(baseConfig);
   }, [startGame]);
 
   const openGame = useCallback(
-    (id: string) => {
+    async (id: string) => {
       clearPremove();
-      return apply(api.getGame(id));
+      const snap = await apply(api.getGame(id));
+      if (snap && snap.status === "ongoing" && !snap.player_turn) {
+        return metSlot(() => apply(api.botMove(snap.id)));
+      }
+      return snap;
     },
-    [apply, clearPremove],
+    [apply, clearPremove, metSlot],
   );
+
+  useEffect(() => {
+    const initialId = parseGameHash();
+    if (initialId) {
+      void openGame(initialId).then((snap) => {
+        if (!snap) setGameHash(null);
+      });
+    }
+    const onHashChange = () => {
+      const id = parseGameHash();
+      if (!id && gameIdRef.current) {
+        gameIdRef.current = null;
+        gameRef.current = null;
+        setGame(null);
+        setReview(null);
+        setHint(null);
+        setEvalResult(null);
+        clearPremove();
+      } else if (id && id !== gameIdRef.current) {
+        void openGame(id);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [openGame, clearPremove]);
 
   const playerMove = useCallback(
     async (uci: string, alsVoorzet = false) => {
@@ -326,54 +416,76 @@ export function useGame() {
     const id = gameIdRef.current;
     if (!id) return;
     setReviewLoading(true);
+    setReviewProgress(null);
     setError(null);
     try {
-      setReview(await api.review(id));
+      const data = await api.reviewStream(id, (done, total) => {
+        setReviewProgress({ done, total });
+      });
+      setReview(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewLoading(false);
+      setReviewProgress(null);
     }
   }, []);
 
   const clearReview = useCallback(() => setReview(null), []);
+
+  const triggerDownload = (text: string, id: string) => {
+    const botName = gameRef.current?.bot.id ?? "partij";
+    const naam = `humanchess-${botName}-${id.slice(0, 6)}.pgn`;
+    const blob = new Blob([text], { type: "application/x-chess-pgn;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = naam;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return naam;
+  };
 
   const exportPgn = useCallback(async () => {
     const id = gameIdRef.current;
     if (!id) return;
     try {
       const text = await api.pgn(id);
-      const naam = `humanchess-${id.slice(0, 8)}.pgn`;
-      if (navigator.clipboard?.writeText) {
-        try {
-          await navigator.clipboard.writeText(text);
-          setHint({ move: null, san: "PGN gekopieerd naar klembord" });
-          return;
-        } catch {
-          /* kopiëren geweigerd: dan maar als bestand */
-        }
+      if (await copyToClipboard(text)) {
+        showNotice("PGN gekopieerd naar klembord.");
+        return;
       }
-      const blob = new Blob([text], { type: "application/x-chess-pgn" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = naam;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setHint({ move: null, san: `PGN bewaard als ${naam}` });
+      const naam = triggerDownload(text, id);
+      showNotice(`PGN bewaard als ${naam}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [showNotice]);
+
+  const downloadPgn = useCallback(async () => {
+    const id = gameIdRef.current;
+    if (!id) return;
+    try {
+      const text = await api.pgn(id);
+      const naam = triggerDownload(text, id);
+      showNotice(`PGN bewaard als ${naam}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [showNotice]);
 
   const importPgn = useCallback(
-    (pgn: string, botId: string, playerColor: "white" | "black") => {
+    async (pgn: string, botId: string, playerColor: "white" | "black") => {
       clearPremove();
-      return apply(api.importPgn(pgn, botId, playerColor));
+      const snap = await apply(api.importPgn(pgn, botId, playerColor));
+      if (snap && snap.status === "ongoing" && !snap.player_turn) {
+        return metSlot(() => apply(api.botMove(snap.id)));
+      }
+      return snap;
     },
-    [apply, clearPremove],
+    [apply, clearPremove, metSlot],
   );
 
   const analyseFen = useCallback(
@@ -397,10 +509,16 @@ export function useGame() {
       .getGame(id)
       .then((snap) => {
         if (inFlightRef.current || snap.id !== gameIdRef.current) return;
+        gameRef.current = snap;
         setGame(snap);
+        if (snap.status !== "ongoing") {
+          clearPremove();
+          void loadProfile();
+          void loadHistory();
+        }
       })
       .catch(() => undefined);
-  }, []);
+  }, [clearPremove, loadHistory, loadProfile]);
 
   const removeGame = useCallback(
     async (id: string) => {
@@ -416,15 +534,19 @@ export function useGame() {
 
   const leaveGame = useCallback(() => {
     gameIdRef.current = null;
+    gameRef.current = null;
+    setGameHash(null);
     setGame(null);
     setHint(null);
     setEvalResult(null);
     setError(null);
     setNotice(null);
     setReview(null);
+    setReviewProgress(null);
     clearPremove();
     void loadHistory();
-  }, [clearPremove, loadHistory]);
+    void loadProfile();
+  }, [clearPremove, loadHistory, loadProfile]);
 
   return {
     bots,
@@ -440,6 +562,7 @@ export function useGame() {
     profile,
     review,
     reviewLoading,
+    reviewProgress,
     runReview,
     analyseFen,
     clearReview,
@@ -453,6 +576,7 @@ export function useGame() {
     getHint,
     analyse,
     exportPgn,
+    downloadPgn,
     importPgn,
     removeGame,
     refresh,

@@ -152,3 +152,79 @@ def test_hint():
         resp = client.post(f"/api/games/{game['id']}/hint")
         assert resp.status_code == 200
         assert resp.json()["best_move"]
+
+
+def test_black_cannot_undo_only_bot_move():
+    with TestClient(app) as client:
+        game = client.post(
+            "/api/games",
+            json={"bot_id": "pip", "player_color": "black", "base_minutes": 5},
+        ).json()
+        assert len(game["moves"]) == 1
+        assert game["can_undo"] is False
+        resp = client.post(f"/api/games/{game['id']}/undo")
+        assert resp.status_code == 400
+
+
+def test_random_color_and_opening_detection():
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/games",
+            json={"bot_id": "pip", "player_color": "random", "base_minutes": 5},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["player_color"] in ("white", "black")
+
+        pgn = "1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *"
+        imp = client.post(
+            "/api/games/import",
+            json={"pgn": pgn, "bot_id": "mo", "player_color": "white"},
+        ).json()
+        assert imp["opening"] == {"eco": "B90", "name": "Siciliaans: Najdorf"}
+
+
+def test_threefold_repetition_ends_game():
+    with TestClient(app) as client:
+        pgn = "1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 *"
+        imp = client.post(
+            "/api/games/import",
+            json={"pgn": pgn, "bot_id": "mo", "player_color": "white"},
+        ).json()
+        assert imp["status"] == "draw"
+        assert imp["result"] == "1/2-1/2"
+        assert imp["result_reason"] == "threefold_repetition"
+
+
+def test_resign_updates_profile_history_and_bot_stats():
+    with TestClient(app) as client:
+        before = client.get("/api/profile").json()
+        game = client.post(
+            "/api/games",
+            json={"bot_id": "timo", "player_color": "white", "base_minutes": 5},
+        ).json()
+        res = client.post(f"/api/games/{game['id']}/resign").json()
+        assert res["status"] == "resigned"
+        after = client.get("/api/profile").json()
+        assert after["games"] == before["games"] + 1
+        assert after["losses"] == before["losses"] + 1
+        assert after["bot_stats"]["timo"]["losses"] >= 1
+        assert len(after["history"]) == len(before["history"]) + 1
+        assert after["history"][-1]["bot_id"] == "timo"
+
+
+def test_review_stream_and_sqlite_cache():
+    with TestClient(app) as client:
+        game = client.post(
+            "/api/games",
+            json={"bot_id": "pip", "player_color": "white"},
+        ).json()
+        client.post(f"/api/games/{game['id']}/move", json={"uci": "e2e4"})
+        client.post(f"/api/games/{game['id']}/bot-move")
+        with client.stream("GET", f"/api/games/{game['id']}/review/stream?depth=6") as resp:
+            assert resp.status_code == 200
+            body = "".join(resp.iter_text())
+        assert "event: progress" in body
+        assert "event: result" in body
+        cached = client.get(f"/api/games/{game['id']}/review?depth=6").json()
+        assert cached["game_id"] == game["id"]
+        assert len(cached["moves"]) == 2

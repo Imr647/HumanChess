@@ -1,4 +1,15 @@
 export type Color = "white" | "black";
+export type ColorChoice = "white" | "black" | "random";
+
+export interface OpeningInfo {
+  eco: string;
+  name: string;
+}
+
+export interface ReviewProgress {
+  done: number;
+  total: number;
+}
 
 export interface Bot {
   id: string;
@@ -92,6 +103,7 @@ export interface ReviewResult {
   moves: ReviewMove[];
   eval: number[];
   initial_fen: string | null;
+  opening?: OpeningInfo | null;
 }
 
 export interface ChatMessage {
@@ -101,12 +113,30 @@ export interface ChatMessage {
   ply: number;
 }
 
+export interface RatingPoint {
+  rating: number;
+  delta: number;
+  bot_id: string;
+  bot_name: string;
+  result: string;
+  score: number;
+  at: number;
+}
+
+export interface BotStats {
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
 export interface Profile {
   rating: number;
   wins: number;
   losses: number;
   draws: number;
   games: number;
+  history: RatingPoint[];
+  bot_stats: Record<string, BotStats>;
 }
 
 export interface GameSnapshot {
@@ -127,6 +157,7 @@ export interface GameSnapshot {
   can_undo: boolean;
   rated: boolean;
   assisted: boolean;
+  opening?: OpeningInfo | null;
   clock: GameClock;
   chat: ChatMessage[];
   created_at: number;
@@ -174,7 +205,7 @@ export interface Premove {
 
 export interface NewGameConfig {
   bot_id: string;
-  player_color: Color;
+  player_color: ColorChoice;
   base_minutes: number;
   increment_seconds: number;
 }

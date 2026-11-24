@@ -37,7 +37,7 @@ function SummaryColumn({ title, summary }: { title: string; summary: ReviewSumma
 }
 
 function Legend() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <div className="legend">
       <button className="legend-toggle" onClick={() => setOpen((v) => !v)}>
@@ -150,6 +150,11 @@ export default function ReviewPanel({ review, selectedPly, onSelect }: ReviewPan
   return (
     <div className="panel review">
       <h3>Partij-analyse</h3>
+      {review.opening && (
+        <p className="review-opening">
+          <span className="eco-code">{review.opening.eco}</span> {review.opening.name}
+        </p>
+      )}
       <div className="review-summary">
         <SummaryColumn title="Wit" summary={review.summary.white} />
         <SummaryColumn title="Zwart" summary={review.summary.black} />
